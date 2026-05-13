@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="theme-color" content="#1B3424"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Hisabi"/>
@@ -18,7 +18,7 @@ input::placeholder{color:#5a6145}
 select option{background:#1B3424;color:#F6EAC8}
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
-.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh;height:-webkit-fill-available;overflow:hidden}
 
 /* Header */
 .header{background:#162b1c;border-bottom:1px solid #2a4a33;padding:14px 18px 0;flex-shrink:0}
@@ -30,11 +30,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .balance-val{font-family:‘Lora’,serif;font-size:20px;font-weight:700;text-align:right}
 
 /* Bottom nav */
-.bottom-nav{display:flex;background:#162b1c;border-top:1px solid #2a4a33;flex-shrink:0}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px;border:none;background:transparent;color:#8a7d61;cursor:pointer;border-top:2px solid transparent;transition:all 0.15s;font-family:‘Plus Jakarta Sans’,sans-serif}
+.bottom-nav{display:flex;background:#162b1c;border-top:1px solid #2a4a33;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 2px;border:none;background:transparent;color:#8a7d61;cursor:pointer;border-top:2px solid transparent;transition:all 0.15s;font-family:‘Plus Jakarta Sans’,sans-serif}
 .nav-btn.active{color:#898F65;border-top-color:#898F65}
-.nav-btn span:first-child{font-size:16px}
-.nav-btn span:last-child{font-size:8px;margin-top:2px;font-weight:600}
+.nav-btn span:first-child{font-size:18px}
+.nav-btn span:last-child{font-size:9px;margin-top:3px;font-weight:600}
 
 /* Content */
 .content{flex:1;overflow-y:auto;padding:16px}
@@ -412,11 +412,15 @@ function renderTransactions(el,d){
   const txCard=h("div",{className:"card"});
   txCard.appendChild(h("div",{className:"card-title"},"Add Transaction"));
   const txFr=h("div",{className:"form-row"});
-  const tDate=h("input",{className:"inp",type:"date",value:state.newTx.date,onChange:e=>{state.newTx.date=e.target.value;}});
-  const tCat=h("select",{className:"inp",onChange:e=>{state.newTx.category=e.target.value;}});
+  const tDate=h("input",{className:"inp",type:"date",value:state.newTx.date});
+  tDate.addEventListener("change",e=>{state.newTx.date=e.target.value;});
+  const tCat=h("select",{className:"inp"});
+  tCat.addEventListener("change",e=>{state.newTx.category=e.target.value;});
   CATS.forEach(c=>{const o=h("option",null,c);if(c===state.newTx.category)o.selected=true;tCat.appendChild(o);});
-  const tDesc=h("input",{className:"inp",placeholder:"Description",value:state.newTx.desc,onInput:e=>{state.newTx.desc=e.target.value;}});
-  const tAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newTx.amount,onInput:e=>{state.newTx.amount=e.target.value;}});
+  const tDesc=h("input",{className:"inp",placeholder:"Description",value:state.newTx.desc});
+  tDesc.addEventListener("input",e=>{state.newTx.desc=e.target.value;});
+  const tAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newTx.amount});
+  tAmt.addEventListener("input",e=>{state.newTx.amount=e.target.value;});
   txFr.appendChild(tDate);txFr.appendChild(tCat);txFr.appendChild(tDesc);txFr.appendChild(tAmt);
   txCard.appendChild(txFr);
   txCard.appendChild(h("button",{className:"btn-primary",onClick:()=>{
@@ -430,9 +434,12 @@ function renderTransactions(el,d){
   const sCard=h("div",{className:"card"});
   sCard.appendChild(h("div",{className:"card-title"},"Add Side Income"));
   const sFr=h("div",{className:"form-row"});
-  const sDate=h("input",{className:"inp",type:"date",value:state.newSide.date,onChange:e=>{state.newSide.date=e.target.value;}});
-  const sAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newSide.amount,onInput:e=>{state.newSide.amount=e.target.value;}});
-  const sDesc=h("input",{className:"inp form-full",placeholder:"Source",value:state.newSide.desc,onInput:e=>{state.newSide.desc=e.target.value;}});
+  const sDate=h("input",{className:"inp",type:"date",value:state.newSide.date});
+  sDate.addEventListener("change",e=>{state.newSide.date=e.target.value;});
+  const sAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newSide.amount});
+  sAmt.addEventListener("input",e=>{state.newSide.amount=e.target.value;});
+  const sDesc=h("input",{className:"inp form-full",placeholder:"Source",value:state.newSide.desc});
+  sDesc.addEventListener("input",e=>{state.newSide.desc=e.target.value;});
   sFr.appendChild(sDate);sFr.appendChild(sAmt);sFr.appendChild(sDesc);
   sCard.appendChild(sFr);
   sCard.appendChild(h("button",{className:"btn-income",onClick:()=>{
@@ -470,13 +477,18 @@ function renderTransactions(el,d){
 function renderBudget(el,d){
   const s1=h("div",{className:"card"});
   s1.appendChild(h("div",{className:"card-title"},"Monthly Salary (BD)"));
-  const si=h("input",{className:"inp",type:"number",step:"0.001",value:state.salary,onInput:e=>{state.salary=Number(e.target.value);render();}});
+  const si=h("input",{className:"inp",type:"number",step:"0.001",value:state.salary});
+  si.addEventListener("change",e=>{state.salary=Number(e.target.value);render();});
+  si.addEventListener("blur",e=>{state.salary=Number(e.target.value);render();});
   s1.appendChild(si);el.appendChild(s1);
 
   const c1=h("div",{className:"card"});
   c1.appendChild(h("div",{className:"card-title"},"Carry-Forward (BD)"));
   c1.appendChild(h("div",{style:{fontSize:11,color:C.sandFaint,marginBottom:8}},'Your "From Last Month" balance'));
-  c1.appendChild(h("input",{className:"inp",type:"number",step:"0.001",value:state.carry,onInput:e=>{state.carry=Number(e.target.value);render();}}));
+  const ci=h("input",{className:"inp",type:"number",step:"0.001",value:state.carry});
+  ci.addEventListener("change",e=>{state.carry=Number(e.target.value);render();});
+  ci.addEventListener("blur",e=>{state.carry=Number(e.target.value);render();});
+  c1.appendChild(ci);
   el.appendChild(c1);
 
   const lCard=h("div",{className:"card"});
