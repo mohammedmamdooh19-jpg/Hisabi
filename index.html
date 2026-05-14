@@ -432,7 +432,7 @@ function renderTransactions(el,d){
     fb.appendChild(ip);
     fb.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:5}},"Color"));
     const cp=h("div",{className:"color-picker"});
-    SC_COLORS.forEach(col=>{cp.appendChild(h("div",{className:"color-dot"+(state.newSc.color===col?" sel":""),style:{background:col},onClick:()=>{state.newSc.color=col;render();}});});
+    SC_COLORS.forEach(col=>{cp.appendChild(h("div",{className:"color-dot"+(state.newSc.color===col?" sel":""),style:{background:col},onClick:()=>{state.newSc.color=col;render();}}));});
     fb.appendChild(cp);
     const btns=h("div",{style:{display:"flex",gap:8}});
     btns.appendChild(h("button",{className:"btn-primary",style:{marginTop:0,flex:1},onClick:()=>{
