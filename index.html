@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -24,14 +23,14 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .header{background:#162b1c;border-bottom:1px solid #2a4a33;padding:14px 18px 0;flex-shrink:0}
 .header-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .logo-tag{font-size:9px;letter-spacing:3px;color:#898F65;text-transform:uppercase;font-weight:700}
-.logo-name{font-family:‘Lora’,serif;font-size:22px;font-weight:700;color:#F6EAC8}
-.logo-arabic{font-family:‘Scheherazade New’,serif;font-size:17px;color:#898F65;margin-left:8px}
+.logo-name{font-family:'Lora',serif;font-size:22px;font-weight:700;color:#F6EAC8}
+.logo-arabic{font-family:'Scheherazade New',serif;font-size:17px;color:#898F65;margin-left:8px}
 .balance-label{font-size:10px;color:#8a7d61;text-align:right}
-.balance-val{font-family:‘Lora’,serif;font-size:20px;font-weight:700;text-align:right}
+.balance-val{font-family:'Lora',serif;font-size:20px;font-weight:700;text-align:right}
 
 /* Bottom nav */
 .bottom-nav{display:flex;background:#162b1c;border-top:1px solid #2a4a33;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 2px;border:none;background:transparent;color:#8a7d61;cursor:pointer;border-top:2px solid transparent;transition:all 0.15s;font-family:‘Plus Jakarta Sans’,sans-serif}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 2px;border:none;background:transparent;color:#8a7d61;cursor:pointer;border-top:2px solid transparent;transition:all 0.15s;font-family:'Plus Jakarta Sans',sans-serif}
 .nav-btn.active{color:#898F65;border-top-color:#898F65}
 .nav-btn span:first-child{font-size:18px}
 .nav-btn span:last-child{font-size:9px;margin-top:3px;font-weight:600}
@@ -41,9 +40,9 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
 /* Cards */
 .card{background:#1B3424;border-radius:14px;padding:18px;border:1px solid #2a4a33;margin-bottom:14px}
-.card-title{font-family:‘Lora’,serif;font-size:15px;font-weight:600;color:#F6EAC8;margin-bottom:12px}
+.card-title{font-family:'Lora',serif;font-size:15px;font-weight:600;color:#F6EAC8;margin-bottom:12px}
 .lbl{font-size:10px;color:#8a7d61;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;font-weight:600}
-.num{font-family:‘Lora’,serif;font-weight:700}
+.num{font-family:'Lora',serif;font-weight:700}
 
 /* Grid */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
@@ -130,7 +129,6 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .color-dot{width:20px;height:20px;border-radius:50%;cursor:pointer;border:3px solid transparent}
 .color-dot.sel{border-color:#F6EAC8}
 </style>
-
 </head>
 <body>
 <div class="app" id="app">
@@ -280,15 +278,24 @@ function render(){
 }
 
 function renderDashboard(el,d,dl){
-  // Stat cards
+  // ── Stat cards ──────────────────────────────────────────────────────────
   const grid=h("div",{className:"grid2"},
-    [["Total Income",fmt(d.totalIncome),C.olive],["Total Spent",fmt(d.totalSpent),C.warning],
-     ["Projected",fmt(d.projSpend),d.projSpend>d.totalIncome?C.negative:C.sky],["Days Left",dl+" days",C.skyDim]]
-    .map(([l,v,col])=>h("div",{className:"stat-card"},[h("div",{className:"lbl"},l),h("div",{className:"num",style:{fontSize:15,color:col}},v)]))
+    [
+      ["Total Income",fmt(d.totalIncome),"Salary + carry-forward",C.olive],
+      ["Total Spent",fmt(d.totalSpent),"This month so far",C.warning],
+      ["End-of-Month Est.",fmt(d.projSpend),"At current daily pace",d.projSpend>d.totalIncome?C.negative:C.sky],
+      ["Days Remaining",dl+" days","Left in "+new Date().toLocaleString("en",{month:"long"}),C.skyDim]
+    ].map(([l,v,sub,col])=>{
+      const card=h("div",{className:"stat-card"});
+      card.appendChild(h("div",{className:"lbl"},l));
+      card.appendChild(h("div",{className:"num",style:{fontSize:14,color:col}},v));
+      card.appendChild(h("div",{style:{fontSize:9,color:C.sandFaint,marginTop:3}},sub));
+      return card;
+    })
   );
   el.appendChild(grid);
 
-  // Debt banners
+  // ── Debt banners ─────────────────────────────────────────────────────────
   if(d.iOwe>0||d.owedToMe>0){
     const dg=h("div",{className:"grid2"});
     if(d.iOwe>0) dg.appendChild(h("div",{className:"stat-card alert-warn"},[h("div",{className:"lbl"},"You Owe"),h("div",{className:"num",style:{fontSize:16,color:C.negative}},fmt(d.iOwe))]));
@@ -296,64 +303,126 @@ function renderDashboard(el,d,dl){
     el.appendChild(dg);
   }
 
-  // Over budget
+  // ── Over budget alert ────────────────────────────────────────────────────
   if(d.overBudget.length>0){
     el.appendChild(h("div",{className:"alert alert-warn"},[
       h("div",{style:{color:C.negative,fontWeight:600,marginBottom:4}},"⚠ Over Budget"),
-      h("div",{style:{fontSize:12,color:C.sandDim}},d.overBudget.map(c=>c+" ("+fmt(d.byCat[c])+"/"+fmt(state.limits[c])+")").join(" · "))
+      h("div",{style:{fontSize:12,color:C.sandDim}},d.overBudget.join(", "))
     ]));
   }
 
-  // Spending
+  // ── Spending by Category — icon grid 2 columns ───────────────────────────
   const spCard=h("div",{className:"card"});
   spCard.appendChild(h("div",{className:"card-title"},"Spending by Category"));
+  const catGrid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}});
+
+  const CAT_ICONS={"Housing":"🏠","Food":"🍽️","Transport":"🚗","Utilities":"💡","Entertainment":"🎬","Health":"💊","Shopping":"🛍️","Savings":"💰","Other":"📦"};
+
   CATS.filter(c=>d.byCat[c]>0||state.limits[c]>0).forEach(cat=>{
     const pct=Math.min((d.byCat[cat]/state.limits[cat])*100,100);
     const over=d.byCat[cat]>state.limits[cat];
-    const row=h("div",{style:{marginBottom:10}});
-    const lbl=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}});
-    lbl.appendChild(h("span",{style:{color:C.sandDim}},cat));
-    lbl.appendChild(h("span",{style:{color:over?C.negative:C.sandFaint}},fmt(d.byCat[cat])+" / "+fmt(state.limits[cat])));
-    row.appendChild(lbl);
-    const track=h("div",{className:"bar-track",style:{height:"6px"}});
-    track.appendChild(h("div",{className:"bar-fill",style:{width:pct+"%",height:"6px",background:over?C.negative:CAT_COLORS[cat]}}));
-    row.appendChild(track);
-    spCard.appendChild(row);
+    const col=over?C.negative:CAT_COLORS[cat];
+
+    const card=h("div",{style:{
+      background:C.bg,borderRadius:12,padding:"12px 10px 10px",
+      border:"1px solid "+C.border,
+      display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center"
+    }});
+
+    // Icon in soft circle
+    const circle=h("div",{style:{
+      width:44,height:44,borderRadius:"50%",
+      background:col+"25",
+      display:"flex",alignItems:"center",justifyContent:"center",
+      fontSize:20,marginBottom:8
+    }},CAT_ICONS[cat]||"•");
+    card.appendChild(circle);
+
+    // Category name
+    card.appendChild(h("div",{style:{fontSize:10,color:C.sandDim,marginBottom:4,fontWeight:500}},cat));
+
+    // Spent amount
+    card.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:12,fontWeight:700,color:col,marginBottom:2}},
+      "BD "+Number(d.byCat[cat]).toFixed(3)
+    ));
+
+    // Limit
+    card.appendChild(h("div",{style:{fontSize:9,color:C.sandFaint,marginBottom:8}},
+      "of BD "+Number(state.limits[cat]).toFixed(3)
+    ));
+
+    // Progress bar
+    const track=h("div",{style:{width:"100%",background:C.surface,borderRadius:99,height:4,overflow:"hidden"}});
+    track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:col,borderRadius:99}}));
+    card.appendChild(track);
+
+    catGrid.appendChild(card);
   });
+
+  spCard.appendChild(catGrid);
   el.appendChild(spCard);
 
-  // Goals
+  // ── Goals ────────────────────────────────────────────────────────────────
   const gCard=h("div",{className:"card"});
   const ghdr=h("div",{className:"sec-hdr"});
   ghdr.appendChild(h("div",{className:"card-title",style:{margin:0}},"🎯 Goals"));
-  const va=h("button",{style:{fontSize:11,color:C.olive,background:"none",border:"none",cursor:"pointer"},onClick:()=>{state.tab="goals";render();}},"View all →");
-  ghdr.appendChild(va);
+  ghdr.appendChild(h("button",{style:{fontSize:11,color:C.olive,background:"none",border:"none",cursor:"pointer"},onClick:()=>{state.tab="goals";render();}},"View all →"));
   gCard.appendChild(ghdr);
   state.goals.forEach(g=>{
     const pct=Math.min((g.saved/g.target)*100,100);
     const ml=g.freqAmount>0?Math.ceil((g.target-g.saved)/g.freqAmount):null;
     const dl2=moUntil(g.deadline);
-    const row=h("div",{style:{marginBottom:12}});
-    const lbl=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}});
-    lbl.appendChild(h("span",{style:{color:C.sandDim}},g.icon+" "+g.name));
-    lbl.appendChild(h("span",{style:{color:g.color}},Math.round(pct)+"%"+(ml?" · ~"+ml+"mo":"")+(dl2!==null?" · 📅"+dl2+"mo":"")));
-    row.appendChild(lbl);
-    const track=h("div",{className:"bar-track",style:{height:"7px"}});
-    track.appendChild(h("div",{className:"bar-fill",style:{width:pct+"%",height:"7px",background:g.color}}));
+    const row=h("div",{style:{marginBottom:14}});
+    const top=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}});
+    top.appendChild(h("span",{style:{fontSize:12,color:C.sandDim}},g.icon+" "+g.name));
+    const rightInfo=h("div",{style:{textAlign:"right"}});
+    rightInfo.appendChild(h("span",{style:{fontSize:12,color:g.color,fontFamily:"'Lora',serif",fontWeight:600}},fmt(g.saved)));
+    rightInfo.appendChild(h("span",{style:{fontSize:10,color:C.sandFaint}},"\xa0of "+fmt(g.target)));
+    top.appendChild(rightInfo);
+    row.appendChild(top);
+    const track=h("div",{style:{background:C.bg,borderRadius:99,height:6,overflow:"hidden",marginBottom:4}});
+    track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:g.color,borderRadius:99}}));
     row.appendChild(track);
+    const bot=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:10,color:C.sandFaint}});
+    bot.appendChild(h("span",null,Math.round(pct)+"% saved"+(ml?" · ~"+ml+"mo to go":"")));
+    if(dl2!==null) bot.appendChild(h("span",{style:{color:C.skyDim}},dl2+"mo to deadline"));
+    row.appendChild(bot);
     gCard.appendChild(row);
   });
   el.appendChild(gCard);
 
-  // Quick log preview
+  // ── Quick Log — horizontal row ───────────────────────────────────────────
   const qlCard=h("div",{className:"card"});
   qlCard.appendChild(h("div",{className:"card-title"},"⚡ Quick Log"));
-  const qlGrid=h("div",{className:"ql-grid"});
+  const qlGrid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}});
   state.shortcuts.slice(0,4).forEach(s=>{
-    const tile=h("div",{className:"ql-tile",style:{borderColor:s.color+"44"},onClick:()=>quickLog(s)});
-    tile.appendChild(h("span",{style:{fontSize:20}},s.icon));
-    tile.appendChild(h("span",{style:{fontSize:9,color:C.sandDim,marginTop:3,maxWidth:68,textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}},s.label));
-    tile.appendChild(h("span",{style:{fontSize:9,color:s.color,fontWeight:700}},"BD "+Number(s.amount).toFixed(3)));
+    const tile=h("div",{style:{
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      padding:"14px 6px 12px",borderRadius:14,background:C.bg,cursor:"pointer",gap:6,
+      border:"1px solid "+C.border
+    },onClick:()=>quickLog(s)});
+
+    // Icon in soft circle
+    const circle=h("div",{style:{
+      width:46,height:46,borderRadius:"50%",
+      background:s.color+"20",
+      display:"flex",alignItems:"center",justifyContent:"center",
+      fontSize:22,marginBottom:2
+    }},s.icon);
+    tile.appendChild(circle);
+
+    // Label
+    tile.appendChild(h("div",{style:{
+      fontSize:10,color:C.sandDim,textAlign:"center",
+      maxWidth:"100%",overflow:"hidden",whiteSpace:"nowrap",
+      textOverflow:"ellipsis",fontWeight:500,lineHeight:1.3
+    }},s.label));
+
+    // Amount
+    tile.appendChild(h("div",{style:{
+      fontSize:9,color:s.color,fontWeight:700,textAlign:"center",lineHeight:1.3
+    }},"BD "+Number(s.amount).toFixed(3)));
+
     qlGrid.appendChild(tile);
   });
   qlCard.appendChild(qlGrid);
@@ -369,10 +438,15 @@ function renderTransactions(el,d){
   qlCard.appendChild(qlHdr);
   const qlGrid=h("div",{className:"ql-grid"});
   state.shortcuts.forEach(s=>{
-    const tile=h("div",{className:"ql-tile",style:{borderColor:s.color+"44"},onClick:()=>quickLog(s)});
-    tile.appendChild(h("span",{style:{fontSize:22,lineHeight:1}},s.icon));
-    tile.appendChild(h("span",{style:{fontSize:9,color:C.sandDim,marginTop:3,maxWidth:68,textAlign:"center",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}},s.label));
-    tile.appendChild(h("span",{style:{fontSize:9,color:s.color,fontWeight:700}},"BD "+Number(s.amount).toFixed(3)));
+    const tile=h("div",{style:{
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      width:78,height:78,borderRadius:13,
+      background:s.color+"15",
+      cursor:"pointer",gap:3
+    },onClick:()=>quickLog(s)});
+    tile.appendChild(h("div",{style:{fontSize:24,lineHeight:1,textAlign:"center"}},s.icon));
+    tile.appendChild(h("div",{style:{fontSize:9,color:C.sandDim,textAlign:"center",maxWidth:70,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",lineHeight:1.3}},s.label));
+    tile.appendChild(h("div",{style:{fontSize:9,color:s.color,fontWeight:700,textAlign:"center",lineHeight:1.3}},"BD "+Number(s.amount).toFixed(3)));
     qlGrid.appendChild(tile);
   });
   qlGrid.appendChild(h("div",{className:"ql-add",onClick:()=>{state.showScForm=true;render();}},"+" ));
@@ -791,6 +865,5 @@ function quickLog(s){
 // ── Boot ───────────────────────────────────────────────────────────────────
 render();
 </script>
-
 </body>
 </html>
