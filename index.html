@@ -947,11 +947,12 @@ function renderProfile(el,d){
   const infoCard=h("div",{className:"card"});
   infoCard.appendChild(h("div",{className:"card-title"},"Personal Information"));
   [["Full Name","text","name","Your full name"],["Email","email","email","your@email.com"],["Mobile","tel","mobile","+973 XXXX XXXX"]].forEach(([label,type,key,placeholder])=>{
-    infoCard.appendChild(h("div",{style:{marginBottom:12}});
-    infoCard.appendChild(h("div",{className:"lbl"},label));
+    const fieldWrap=h("div",{style:{marginBottom:12}});
+    fieldWrap.appendChild(h("div",{className:"lbl"},label));
     const inp=h("input",{className:"inp",type,placeholder,value:state.profile[key]||""});
     inp.addEventListener("blur",e=>{state.profile[key]=e.target.value;render();});
-    infoCard.lastChild.appendChild(inp);
+    fieldWrap.appendChild(inp);
+    infoCard.appendChild(fieldWrap);
   });
 
   // Newsletter toggle
