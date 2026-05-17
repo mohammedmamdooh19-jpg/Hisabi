@@ -676,7 +676,7 @@ function renderTransactions(el,d){
 function renderHistory(el,d){
   const card=h("div",{className:"card"});
   card.appendChild(h("div",{className:"card-title"},"Monthly History"));
-  card.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginBottom:16}},"Carry-forward balance — like your Google Sheet"));
+  card.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginBottom:16}},"Your month-by-month balance history"));
   const rows=histRows();
   const cur={month:"This Month",carry:rows[rows.length-1]?rows[rows.length-1].net:0,income:d.totalIncome,spent:d.totalSpent,net:d.balance};
   const all=[...rows,cur];
@@ -935,64 +935,79 @@ async function sendChat(){
 // PROFILE
 // ══════════════════════════════════════════════════════════════════════════
 function renderProfile(el,d){
+  if(!state.profile) state.profile={name:"",email:"",mobile:"",newsletter:true};
+
   // Avatar + name
   const topCard=h("div",{className:"card",style:{textAlign:"center",padding:"24px 18px"}});
-  const initials=(state.profile.name||"H").charAt(0).toUpperCase();
-  topCard.appendChild(h("div",{className:"profile-avatar"},initials));
+  topCard.appendChild(h("div",{className:"profile-avatar"},(state.profile.name||"H").charAt(0).toUpperCase()));
   topCard.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:20,fontWeight:700,color:C.gray1,marginBottom:4}},state.profile.name||"Your Name"));
-  topCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2}},state.profile.email||"Add your email"));
+  topCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2}},state.profile.email||"Add your email below"));
   el.appendChild(topCard);
 
   // Personal info
   const infoCard=h("div",{className:"card"});
   infoCard.appendChild(h("div",{className:"card-title"},"Personal Information"));
   [["Full Name","text","name","Your full name"],["Email","email","email","your@email.com"],["Mobile","tel","mobile","+973 XXXX XXXX"]].forEach(([label,type,key,placeholder])=>{
-    const fieldWrap=h("div",{style:{marginBottom:12}});
-    fieldWrap.appendChild(h("div",{className:"lbl"},label));
-    const inp=h("input",{className:"inp",type,placeholder,value:state.profile[key]||""});
-    inp.addEventListener("blur",e=>{state.profile[key]=e.target.value;render();});
-    fieldWrap.appendChild(inp);
-    infoCard.appendChild(fieldWrap);
+    const wrap=h("div",{style:{marginBottom:14}});
+    wrap.appendChild(h("div",{className:"lbl"},label));
+    const inp=h("input",{className:"inp",type:type,placeholder:placeholder,value:state.profile[key]||""});
+    inp.addEventListener("blur",e=>{state.profile[key]=e.target.value;saveState();});
+    wrap.appendChild(inp);
+    infoCard.appendChild(wrap);
   });
 
   // Newsletter toggle
-  const nlRow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:14,paddingTop:14,borderTop:"1px solid "+C.border}});
-  nlRow.appendChild(h("div",[h("div",{style:{fontSize:13,fontWeight:500,color:C.gray1}},"Newsletter"),h("div",{style:{fontSize:11,color:C.gray2,marginTop:2}},"Get updates about new Hisabi features")]));
-  const toggle=h("button",{style:{width:44,height:24,borderRadius:99,background:state.profile.newsletter?C.grove:C.gray3,border:"none",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0},onClick:()=>{state.profile.newsletter=!state.profile.newsletter;render();}});
-  const knob=h("div",{style:{width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:state.profile.newsletter?"22px":"2px",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}});
-  toggle.appendChild(knob);nlRow.appendChild(toggle);
+  const nlRow=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:14,borderTop:"1px solid "+C.border}});
+  const nlLeft=h("div");
+  nlLeft.appendChild(h("div",{style:{fontSize:13,fontWeight:500,color:C.gray1}},"Newsletter"));
+  nlLeft.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:2}},"Get updates about new Hisabi features"));
+  nlRow.appendChild(nlLeft);
+  const toggle=h("button",{style:{width:44,height:24,borderRadius:"99px",background:state.profile.newsletter?C.grove:C.gray3,border:"none",cursor:"pointer",position:"relative",flexShrink:0},onClick:()=>{state.profile.newsletter=!state.profile.newsletter;render();}});
+  const knob=h("div",{style:{width:20,height:20,borderRadius:"50%",background:"#fff",position:"absolute",top:"2px",left:state.profile.newsletter?"22px":"2px",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}});
+  toggle.appendChild(knob);
+  nlRow.appendChild(toggle);
   infoCard.appendChild(nlRow);
   el.appendChild(infoCard);
 
   // Financial settings
   const finCard=h("div",{className:"card"});
   finCard.appendChild(h("div",{className:"card-title"},"Financial Settings"));
-  finCard.appendChild(h("div",{style:{marginBottom:12}},[h("div",{className:"lbl"},"Monthly Salary (BD)")]));
+  const salWrap=h("div",{style:{marginBottom:14}});
+  salWrap.appendChild(h("div",{className:"lbl"},"Monthly Salary (BD)"));
   const salInp=h("input",{className:"inp",type:"number",step:"0.001",placeholder:"e.g. 1200.000",value:state.salary});
-  salInp.addEventListener("change",e=>{state.salary=Number(e.target.value);render();});
-  salInp.addEventListener("blur",e=>{state.salary=Number(e.target.value);render();});
-  finCard.lastChild.appendChild(salInp);
-  finCard.appendChild(h("div",{style:{marginTop:12}},[h("div",{className:"lbl"},"Carry-Forward (BD)")]));
-  const carryInp=h("input",{className:"inp",type:"number",step:"0.001",placeholder:"From last month",value:state.carry});
-  carryInp.addEventListener("change",e=>{state.carry=Number(e.target.value);render();});
-  carryInp.addEventListener("blur",e=>{state.carry=Number(e.target.value);render();});
-  finCard.lastChild.appendChild(carryInp);
+  salInp.addEventListener("blur",e=>{state.salary=Number(e.target.value)||0;render();});
+  salWrap.appendChild(salInp);
+  finCard.appendChild(salWrap);
+  const carryWrap=h("div");
+  carryWrap.appendChild(h("div",{className:"lbl"},"Carry-Forward (BD)"));
+  carryWrap.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginBottom:6}},"Balance carried over from last month"));
+  const carryInp=h("input",{className:"inp",type:"number",step:"0.001",placeholder:"0.000",value:state.carry});
+  carryInp.addEventListener("blur",e=>{state.carry=Number(e.target.value)||0;render();});
+  carryWrap.appendChild(carryInp);
+  finCard.appendChild(carryWrap);
   el.appendChild(finCard);
 
   // Bank statement import
   const importCard=h("div",{className:"card"});
   importCard.appendChild(h("div",{className:"card-title"},"📄 Import Bank Statement"));
-  importCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:14,lineHeight:1.6}},"Upload your PDF bank statement. The AI will read all transactions, categorize them, add them to Hisabi, and suggest budget adjustments based on your spending habits."));
+  importCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:14,lineHeight:1.6}},"Upload your PDF bank statement. The AI will read all transactions, categorize them, and suggest budget adjustments based on your spending habits."));
   if(!getApiKey()){
-    importCard.appendChild(h("div",{style:{background:C.amberLight,borderRadius:10,padding:"10px 12px",fontSize:12,color:"#8a5a00",marginBottom:10}},"⚠ Set up your API key in Ask AI first to use this feature."));
+    importCard.appendChild(h("div",{style:{background:C.amberLight,borderRadius:10,padding:"10px 12px",fontSize:12,color:"#8a5a00"}},"⚠ Set up your API key below first to use this feature."));
   } else {
-    const fileRef=document.createElement("input");fileRef.type="file";fileRef.accept="application/pdf,.pdf";fileRef.style.display="none";fileRef.addEventListener("change",importBankStatement);importCard.appendChild(fileRef);
-    importCard.appendChild(h("button",{className:"btn-primary",style:{marginTop:0},onClick:()=>{if(state.importLoading)return;fileRef.click();}},state.importLoading?"⏳ Reading statement…":"📤 Upload PDF Statement"));
+    const fileRef=document.createElement("input");
+    fileRef.type="file";fileRef.accept="application/pdf,.pdf";fileRef.style.display="none";
+    fileRef.addEventListener("change",importBankStatement);
+    importCard.appendChild(fileRef);
+    const uploadBtn=h("button",{className:"btn-primary",style:{marginTop:0}},state.importLoading?"⏳ Reading statement…":"📤 Upload PDF Statement");
+    uploadBtn.addEventListener("click",()=>{if(!state.importLoading)fileRef.click();});
+    importCard.appendChild(uploadBtn);
     if(state.importResult){
       const res=h("div",{style:{marginTop:12,padding:"12px",background:C.tealLight,borderRadius:10,border:"1px solid "+C.tealMid+"44"}});
       res.appendChild(h("div",{style:{fontSize:12,color:C.teal,fontWeight:600,marginBottom:4}},"✓ "+state.importResult.count+" transactions imported · "+state.importResult.cats+" budgets updated"));
       res.appendChild(h("div",{style:{fontSize:11,color:C.teal,lineHeight:1.6}},state.importResult.summary));
-      res.appendChild(h("button",{style:{fontSize:11,color:C.gray2,background:"none",border:"none",cursor:"pointer",marginTop:6},onClick:()=>{state.importResult=null;render();}},"Dismiss"));
+      const dismissBtn=h("button",{style:{fontSize:11,color:C.gray2,background:"none",border:"none",cursor:"pointer",marginTop:6}},"Dismiss");
+      dismissBtn.addEventListener("click",()=>{state.importResult=null;render();});
+      res.appendChild(dismissBtn);
       importCard.appendChild(res);
     }
   }
@@ -1002,30 +1017,37 @@ function renderProfile(el,d){
   const apiCard=h("div",{className:"card"});
   apiCard.appendChild(h("div",{className:"card-title"},"🔑 AI Assistant"));
   const hasKey=!!getApiKey();
-  apiCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:12,lineHeight:1.6}},hasKey?"API key is saved and active. The AI assistant is ready to use.":"No API key saved. Add one to enable the AI assistant."));
+  apiCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:12,lineHeight:1.6}},hasKey?"✓ API key saved — AI assistant is active.":"No API key yet. Get one free at console.anthropic.com"));
   if(hasKey){
-    apiCard.appendChild(h("button",{className:"btn-coral",onClick:()=>{if(confirm("Remove API key?")){localStorage.removeItem("hisabi_api_key");render();}}},"Remove API Key"));
+    const removeBtn=h("button",{className:"btn-coral"},"Remove API Key");
+    removeBtn.addEventListener("click",()=>{if(confirm("Remove API key?")){localStorage.removeItem("hisabi_api_key");render();}});
+    apiCard.appendChild(removeBtn);
   } else {
     const keyRow=h("div",{style:{display:"flex",gap:8}});
     const keyInp=h("input",{className:"inp",placeholder:"sk-ant-...",type:"password"});
     keyRow.appendChild(keyInp);
-    keyRow.appendChild(h("button",{className:"btn-primary",style:{marginTop:0,flexShrink:0},onClick:()=>{const k=keyInp.value.trim();if(!k.startsWith("sk-")){alert("Invalid key");return;}saveApiKey(k);render();}},"Save"));
+    const saveBtn=h("button",{className:"btn-primary",style:{marginTop:0,flexShrink:0}},"Save");
+    saveBtn.addEventListener("click",()=>{const k=keyInp.value.trim();if(!k.startsWith("sk-")){alert("Invalid key — should start with sk-ant-");return;}saveApiKey(k);render();});
+    keyRow.appendChild(saveBtn);
     apiCard.appendChild(keyRow);
+    apiCard.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginTop:8}},"Your key is stored only on this device."));
   }
   el.appendChild(apiCard);
 
-  // Reset
+  // App settings
   const resetCard=h("div",{className:"card"});
   resetCard.appendChild(h("div",{className:"card-title"},"⚙️ App Settings"));
-  resetCard.appendChild(h("button",{style:{background:"#fff",color:C.coralDark,border:"1px solid "+C.coral+"66",borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:500,width:"100%"},onClick:()=>{if(confirm("Reset all data? This cannot be undone.")){localStorage.clear();location.reload();}}},"Reset All Data"));
+  const resetBtn=h("button",{style:{background:"#fff",color:C.coralDark,border:"1px solid "+C.coral+"66",borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:500,width:"100%"}},"Reset All Data");
+  resetBtn.addEventListener("click",()=>{if(confirm("Reset all data? This cannot be undone.")){localStorage.clear();location.reload();}});
+  resetCard.appendChild(resetBtn);
   el.appendChild(resetCard);
 
-  // App info
-  el.appendChild(h("div",{style:{textAlign:"center",padding:"12px 0 4px"}},[
-    h("div",{style:{fontFamily:"'Lora',serif",fontSize:16,color:C.grove,fontWeight:700}},"Hisabi · حسابي"),
-    h("div",{style:{fontSize:10,color:C.gray2,marginTop:4}},"Track every fils · Built for Bahrain"),
-    h("div",{style:{fontSize:10,color:C.gray3,marginTop:4}},"v1.0.0"),
-  ]));
+  // App info footer
+  const footer=h("div",{style:{textAlign:"center",padding:"16px 0 8px"}});
+  footer.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:16,color:C.grove,fontWeight:700}},"Hisabi · حسابي"));
+  footer.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginTop:4}},"Track every fils · Built for Bahrain"));
+  footer.appendChild(h("div",{style:{fontSize:10,color:C.gray3,marginTop:4}},"v1.0.0"));
+  el.appendChild(footer);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
