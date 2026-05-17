@@ -677,18 +677,80 @@ function renderHistory(el,d){
   const card=h("div",{className:"card"});
   card.appendChild(h("div",{className:"card-title"},"Monthly History"));
   card.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginBottom:16}},"Your month-by-month balance history"));
+
   const rows=histRows();
-  const cur={month:"This Month",carry:rows[rows.length-1]?rows[rows.length-1].net:0,income:d.totalIncome,spent:d.totalSpent,net:d.balance};
+  const curMonth=new Date().toLocaleString("en",{month:"short",year:"numeric"});
+  const cur={month:curMonth,carry:rows.length>0?rows[rows.length-1].net:0,income:d.totalIncome,spent:d.totalSpent,net:d.balance};
   const all=[...rows,cur];
   const maxAbs=Math.max(...all.map(r=>Math.abs(r.net)),1);
-  const bars=h("div",{className:"hist-bars"});
-  all.forEach((r,i)=>{const ht=Math.max((Math.abs(r.net)/maxAbs)*68,4);const isCur=i===all.length-1;const col=h("div",{className:"hist-bar-col"});col.appendChild(h("div",{className:"hist-bar",style:{height:ht+"px",background:r.net>=0?C.grove:C.coral,opacity:isCur?1:0.6,border:isCur?"2px solid "+C.grove:"none"}}));col.appendChild(h("div",{className:"hist-bar-lbl",style:{color:isCur?C.grove:C.gray2}},r.month.toString().slice(-7)));bars.appendChild(col);});
-  card.appendChild(bars);
+
+  // Only show chart if there's something to show
+  if(all.length>0){
+    // Chart label
+    card.appendChild(h("div",{style:{fontSize:10,color:C.gray2,textTransform:"uppercase",letterSpacing:1,fontWeight:600,marginBottom:8}},"Balance by Month"));
+
+    // Bar chart container
+    const chartWrap=h("div",{style:{background:C.gray4,borderRadius:12,padding:"16px 12px 8px",marginBottom:16}});
+    const bars=h("div",{style:{display:"flex",alignItems:"flex-end",gap:6,height:90}});
+
+    all.forEach((r,i)=>{
+      const isCur=i===all.length-1;
+      const ht=Math.max((Math.abs(r.net)/maxAbs)*72,6);
+      const col=h("div",{style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}});
+
+      // Value label on top
+      col.appendChild(h("div",{style:{fontSize:7,color:isCur?C.grove:C.gray2,textAlign:"center",fontWeight:isCur?700:400,whiteSpace:"nowrap",overflow:"hidden",maxWidth:"100%"}},"BD "+(Math.abs(r.net)<1000?r.net.toFixed(0):Math.round(r.net/100)/10+"k")));
+
+      // Bar
+      const bar=h("div",{style:{width:"100%",height:ht+"px",borderRadius:"6px 6px 0 0",background:r.net>=0?C.grove:C.coral,opacity:isCur?1:0.55,border:isCur?"2px solid "+C.grove+"99":"none",transition:"height 0.3s"}});
+      col.appendChild(bar);
+
+      // Month label
+      col.appendChild(h("div",{style:{fontSize:8,color:isCur?C.grove:C.gray2,textAlign:"center",fontWeight:isCur?700:400}},r.month.toString().slice(0,3)));
+
+      bars.appendChild(col);
+    });
+    chartWrap.appendChild(bars);
+
+    // Legend
+    const legend=h("div",{style:{display:"flex",gap:14,marginTop:8,justifyContent:"center"}});
+    [[C.grove,"Positive"],[C.coral,"Negative"]].forEach(([col,label])=>{
+      const item=h("div",{style:{display:"flex",alignItems:"center",gap:4}});
+      item.appendChild(h("div",{style:{width:8,height:8,borderRadius:2,background:col}}));
+      item.appendChild(h("div",{style:{fontSize:9,color:C.gray2}},label));
+      legend.appendChild(item);
+    });
+    chartWrap.appendChild(legend);
+    card.appendChild(chartWrap);
+  }
+
+  // Table
+  card.appendChild(h("div",{style:{fontSize:10,color:C.gray2,textTransform:"uppercase",letterSpacing:1,fontWeight:600,marginBottom:8}},"Detailed Breakdown"));
   const wrap=h("div",{className:"scroll-x"});
   const table=h("div",{className:"hist-table"});
   ["Month","Carry","Income","Spent","Balance"].forEach(hd=>table.appendChild(h("div",{className:"hist-head"},hd)));
-  all.forEach((r,i)=>{const isCur=i===all.length-1;[h("div",{style:{color:isCur?C.grove:C.gray1,fontWeight:isCur?600:400}},r.month),h("div",{style:{color:C.gray2,fontFamily:"'Lora',serif"}},fmt(r.carry)),h("div",{style:{color:C.teal,fontFamily:"'Lora',serif"}},fmt(r.income)),h("div",{style:{color:C.coral,fontFamily:"'Lora',serif"}},fmt(r.spent)),h("div",{style:{color:r.net>=0?C.grove:C.coral,fontWeight:600,fontFamily:"'Lora',serif"}},fmt(r.net))].forEach(cell=>table.appendChild(cell));});
-  wrap.appendChild(table);card.appendChild(wrap);el.appendChild(card);
+  all.forEach((r,i)=>{
+    const isCur=i===all.length-1;
+    [
+      h("div",{style:{color:isCur?C.grove:C.gray1,fontWeight:isCur?600:400}},r.month),
+      h("div",{style:{color:C.gray2,fontFamily:"'Lora',serif"}},fmt(r.carry)),
+      h("div",{style:{color:C.teal,fontFamily:"'Lora',serif"}},fmt(r.income)),
+      h("div",{style:{color:C.coral,fontFamily:"'Lora',serif"}},fmt(r.spent)),
+      h("div",{style:{color:r.net>=0?C.grove:C.coral,fontWeight:600,fontFamily:"'Lora',serif"}},fmt(r.net))
+    ].forEach(cell=>table.appendChild(cell));
+  });
+  wrap.appendChild(table);
+  card.appendChild(wrap);
+  el.appendChild(card);
+
+  // Tip if no history yet
+  if(rows.length===0){
+    el.appendChild(h("div",{className:"card",style:{background:C.tealLight,border:"1px solid "+C.tealMid+"44",textAlign:"center",padding:"20px"}},[
+      h("div",{style:{fontSize:24,marginBottom:8}},"📅"),
+      h("div",{style:{fontSize:13,color:C.teal,fontWeight:600,marginBottom:4}},"History builds over time"),
+      h("div",{style:{fontSize:11,color:C.teal,lineHeight:1.6}},"As you track each month, your balance history will appear here as a chart. Keep logging!"),
+    ]));
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
