@@ -243,6 +243,7 @@ const defaultState={
   newDebt:{person:"",amount:"",direction:"i-owe",note:"",date:tod()},
   newCatName:"",newCatLimit:"",newCatIcon:"📦",
   gInputs:{},
+  feedbackType:"💡 Feature idea", feedbackDraft:"", feedbackSent:false,
 };
 
 let state=Object.assign({},defaultState,LS.get("hisabi_state")||{});
@@ -1032,10 +1033,6 @@ function renderChat(el){
   notifyCard.appendChild(goBtn);
   el.appendChild(notifyCard);
 }
-  wrap.appendChild(row);
-  wrap.appendChild(h("div",{style:{textAlign:"center",marginTop:6}},[h("button",{style:{fontSize:10,color:C.gray2,background:"none",border:"none",cursor:"pointer"},onClick:()=>{if(confirm("Remove API key?")){localStorage.removeItem("hisabi_api_key");render();}}},"Change API Key")]));
-  el.appendChild(wrap);
-}
 
 async function sendChat(){
   const inp=document.getElementById("chat-input");
@@ -1166,8 +1163,58 @@ function renderProfile(el,d){
   }
   el.appendChild(apiCard);
 
-  // App settings
-  const resetCard=h("div",{className:"card"});
+  // Feedback
+  const fbCard=h("div",{className:"card"});
+  fbCard.appendChild(h("div",{className:"card-title"},"💬 Share Your Feedback"));
+  fbCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:12,lineHeight:1.6}},"Help us improve Hisabi! Tell us what you love, what's missing, or any bugs you've found."));
+
+  const feedbackTypes=["💡 Feature idea","🐛 Bug report","👍 I love this","🤔 Suggestion"];
+  const typeRow=h("div",{style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}});
+  if(!state.feedbackType) state.feedbackType=feedbackTypes[0];
+  feedbackTypes.forEach(t=>{
+    const pill=h("button",{style:{padding:"5px 10px",borderRadius:99,fontSize:11,cursor:"pointer",border:"1px solid "+(state.feedbackType===t?C.grove:C.gray3),background:state.feedbackType===t?C.mint:"#fff",color:state.feedbackType===t?C.grove:C.gray2,fontWeight:state.feedbackType===t?600:400,fontFamily:"'Plus Jakarta Sans',sans-serif"}});
+    pill.textContent=t;
+    pill.addEventListener("click",()=>{state.feedbackType=t;render();});
+    typeRow.appendChild(pill);
+  });
+  fbCard.appendChild(typeRow);
+
+  const textarea=document.createElement("textarea");
+  textarea.className="inp";
+  textarea.placeholder="Write your feedback here…";
+  textarea.rows=4;
+  textarea.style.resize="none";
+  textarea.style.lineHeight="1.6";
+  textarea.value=state.feedbackDraft||"";
+  textarea.addEventListener("input",e=>state.feedbackDraft=e.target.value);
+  fbCard.appendChild(textarea);
+
+  const sendFbBtn=h("button",{className:"btn-primary",style:{marginTop:8}});
+  sendFbBtn.textContent=state.feedbackSent?"✓ Feedback sent — thank you!":"Send Feedback";
+  sendFbBtn.style.background=state.feedbackSent?C.teal:C.grove;
+  sendFbBtn.addEventListener("click",async()=>{
+    const text=(state.feedbackDraft||"").trim();
+    if(!text)return;
+    try{
+      await db.collection("feedback").add({
+        uid:currentUser?currentUser.uid:"anonymous",
+        name:state.profile.name||"",
+        email:state.profile.email||"",
+        type:state.feedbackType||"",
+        message:text,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp(),
+        appVersion:"1.0.0"
+      });
+      state.feedbackSent=true;
+      state.feedbackDraft="";
+      render();
+      setTimeout(()=>{state.feedbackSent=false;render();},4000);
+    }catch(e){
+      alert("Couldn't send feedback. Please try again.");
+    }
+  });
+  fbCard.appendChild(sendFbBtn);
+  el.appendChild(fbCard);
   resetCard.appendChild(h("div",{className:"card-title"},"⚙️ App Settings"));
   if(currentUser){
     const signOutBtn=h("button",{style:{background:"#fff",color:C.grove,border:"1px solid "+C.grove+"66",borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:600,width:"100%",marginBottom:10}});
