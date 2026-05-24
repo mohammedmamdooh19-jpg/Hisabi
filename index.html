@@ -990,39 +990,48 @@ function renderDebts(el,d){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// ASK AI
+// ASK AI — COMING SOON
 // ══════════════════════════════════════════════════════════════════════════
 function renderChat(el){
-  const apiKey=getApiKey();
-  if(!apiKey){
-    const banner=h("div",{className:"card",style:{background:C.amberLight,border:"1px solid "+C.amberMid}});
-    banner.appendChild(h("div",{style:{fontWeight:600,color:"#8a5a00",marginBottom:6,fontSize:14}},"🔑 Set up your AI assistant"));
-    banner.appendChild(h("div",{style:{fontSize:12,color:"#8a5a00",marginBottom:4,lineHeight:1.6}},"To use the AI, you need a free Anthropic API key."));
-    banner.appendChild(h("div",{style:{fontSize:12,color:"#8a5a00",marginBottom:12,lineHeight:1.6}},"1. Go to console.anthropic.com\n2. Sign up free\n3. API Keys → Create Key\n4. Paste it below"));
-    const keyRow=h("div",{style:{display:"flex",gap:8}});
-    const keyInp=h("input",{className:"inp",placeholder:"sk-ant-...",type:"password"});
-    keyRow.appendChild(keyInp);
-    keyRow.appendChild(h("button",{className:"btn-primary",style:{marginTop:0,flexShrink:0},onClick:()=>{const k=keyInp.value.trim();if(!k.startsWith("sk-")){alert("Invalid key — should start with sk-ant-");return;}saveApiKey(k);render();}},"Save"));
-    banner.appendChild(keyRow);
-    banner.appendChild(h("div",{style:{fontSize:10,color:"#8a5a00",marginTop:8}},"Stored only on this device."));
-    el.appendChild(banner);
-    return;
-  }
-  const wrap=h("div",{className:"chat-wrap"});
-  const msgs=h("div",{className:"chat-msgs",id:"chat-msgs"});
-  state.msgs.forEach(m=>msgs.appendChild(h("div",{className:m.role==="user"?"msg-user":"msg-ai"},m.text)));
-  if(state.chatLoading) msgs.appendChild(h("div",{className:"msg-ai",style:{color:C.gray2}},"Thinking…"));
-  wrap.appendChild(msgs);
-  setTimeout(()=>{const cm=document.getElementById("chat-msgs");if(cm)cm.scrollTop=cm.scrollHeight;},50);
-  const qp=h("div",{className:"quick-prompts"});
-  ["Am I on track?","When can I afford my goal?","Where am I overspending?","Analyse my habits","How to save more?"].forEach(p=>{
-    qp.appendChild(h("button",{className:"qp-btn",onClick:()=>{const i=document.getElementById("chat-input");if(i){i.value=p;sendChat();}}},p));
+  // Coming Soon hero
+  const hero=h("div",{className:"card",style:{textAlign:"center",padding:"36px 24px",background:"linear-gradient(135deg,#EAF3DE,#E1F5EE)",border:"1px solid "+C.leaf+"44"}});
+  hero.appendChild(h("div",{style:{fontSize:48,marginBottom:16}},"🤖"));
+  hero.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:22,fontWeight:700,color:C.grove,marginBottom:8}},"AI Assistant"));
+  const badge=h("div",{style:{display:"inline-block",background:C.grove,color:"#fff",borderRadius:99,padding:"4px 14px",fontSize:11,fontWeight:700,letterSpacing:1,marginBottom:16}},"COMING SOON");
+  hero.appendChild(badge);
+  hero.appendChild(h("div",{style:{fontSize:13,color:C.gray2,lineHeight:1.7,maxWidth:280,margin:"0 auto"}},"Your personal AI finance assistant is on its way. It will know your spending, goals, and habits — and give you real advice in plain English."));
+  el.appendChild(hero);
+
+  // Feature previews
+  const featCard=h("div",{className:"card"});
+  featCard.appendChild(h("div",{className:"card-title"},"What to expect"));
+  [
+    ["💬","Ask anything","'Am I on track this month?' or 'When can I afford my goal?'"],
+    ["📊","Smart analysis","Get a full breakdown of your spending habits and patterns"],
+    ["📄","Bank statement AI","Upload your PDF and let AI categorize every transaction"],
+    ["🎯","Goal forecasting","Know exactly how long until you hit each savings goal"],
+    ["⚠️","Budget alerts","Get warned before you overspend in any category"],
+  ].forEach(([icon,title,desc])=>{
+    const row=h("div",{style:{display:"flex",gap:12,marginBottom:14,alignItems:"flex-start"}});
+    row.appendChild(h("div",{style:{width:36,height:36,borderRadius:10,background:C.mint,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}},icon));
+    const txt=h("div");
+    txt.appendChild(h("div",{style:{fontSize:13,fontWeight:600,color:C.gray1,marginBottom:2}},title));
+    txt.appendChild(h("div",{style:{fontSize:11,color:C.gray2,lineHeight:1.5}},desc));
+    row.appendChild(txt);
+    featCard.appendChild(row);
   });
-  wrap.appendChild(qp);
-  const row=h("div",{className:"chat-input-row"});
-  const inp=h("input",{className:"chat-inp",id:"chat-input",placeholder:"Ask anything about your finances…"});
-  inp.addEventListener("keydown",e=>{if(e.key==="Enter")sendChat();});
-  row.appendChild(inp);row.appendChild(h("button",{className:"chat-send",onClick:sendChat},"Send"));
+  el.appendChild(featCard);
+
+  // Notify me card
+  const notifyCard=h("div",{className:"card",style:{background:C.amberLight,border:"1px solid "+C.amberMid}});
+  notifyCard.appendChild(h("div",{style:{fontWeight:600,color:"#8a5a00",fontSize:14,marginBottom:6}},"🔔 Get notified when it launches"));
+  notifyCard.appendChild(h("div",{style:{fontSize:12,color:"#8a5a00",marginBottom:12,lineHeight:1.6}},"Make sure your email is saved in your Profile and the newsletter is turned on — we'll let you know the moment AI is available."));
+  const goBtn=h("button",{className:"btn-primary",style:{marginTop:0,background:"#8a5a00",border:"none"}});
+  goBtn.textContent="Go to Profile →";
+  goBtn.addEventListener("click",()=>{state.tab="profile";render();});
+  notifyCard.appendChild(goBtn);
+  el.appendChild(notifyCard);
+}
   wrap.appendChild(row);
   wrap.appendChild(h("div",{style:{textAlign:"center",marginTop:6}},[h("button",{style:{fontSize:10,color:C.gray2,background:"none",border:"none",cursor:"pointer"},onClick:()=>{if(confirm("Remove API key?")){localStorage.removeItem("hisabi_api_key");render();}}},"Change API Key")]));
   el.appendChild(wrap);
