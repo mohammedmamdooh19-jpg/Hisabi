@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Hisabi"/>
 <title>Hisabi · حسابي</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -222,7 +225,7 @@ function h(tag,attrs,children){
 
 // ── State ──────────────────────────────────────────────────────────────────
 const defaultState={
-  tab:"dashboard", moneyTab:"transactions", planTab:"budget",
+  tab:"dashboard", moneyTab:"transactions", planTab:"budget", dashView:"monthly",
   salary:0, carry:0, sides:[], txs:[], msgs:[{role:"assistant",text:"مرحبا! I'm your Hisabi assistant 👋\n\nAsk me anything — 'Am I on track?', 'When can I afford my goal?', 'Analyse my spending habits'"}],
   limits:{Housing:500,Food:150,Transport:80,Utilities:60,Entertainment:50,Health:60,Shopping:100,Savings:150,Other:60},
   goals:[], shortcuts:[{id:1,label:"Karak",icon:"☕",amount:0.1,category:"Food",color:C.amber},{id:2,label:"Parking",icon:"🅿️",amount:0.2,category:"Transport",color:C.teal}],
@@ -464,9 +467,53 @@ function renderApp(root){
 // ══════════════════════════════════════════════════════════════════════════
 function renderDashboard(el,d){
   const dl=daysLeft();
-  // Stat cards
+  const isWeekly=state.dashView==="weekly";
+  const WEEKS=4.333; // avg weeks per month
+
+  // ── Week helpers ──
+  const now=new Date();
+  const dayOfWeek=now.getDay(); // 0=Sun
+  const startOfWeek=new Date(now);
+  startOfWeek.setDate(now.getDate()-dayOfWeek);
+  startOfWeek.setHours(0,0,0,0);
+  const endOfWeek=new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate()+6);
+  endOfWeek.setHours(23,59,59,999);
+  const daysLeftWeek=6-dayOfWeek;
+
+  const weekTxs=state.txs.filter(t=>{const d2=new Date(t.date);return d2>=startOfWeek&&d2<=endOfWeek;});
+  const byCatWeek=CATS.reduce((a,c)=>{a[c]=weekTxs.filter(t=>t.category===c).reduce((s,t)=>s+Number(t.amount),0);return a;},{});
+  const weekSpent=Object.values(byCatWeek).reduce((a,b)=>a+b,0);
+  const weekIncome=Number(state.salary)/WEEKS;
+  const weekBalance=weekIncome-weekSpent;
+
+  // Display values based on view
+  const dispSpent=isWeekly?weekSpent:d.totalSpent;
+  const dispIncome=isWeekly?weekIncome:d.totalIncome;
+  const dispBalance=isWeekly?weekBalance:d.balance;
+  const dispDaysLeft=isWeekly?daysLeftWeek:dl;
+  const dispByCat=isWeekly?byCatWeek:d.byCat;
+  const dispLimits=CATS.reduce((a,c)=>{a[c]=isWeekly?(state.limits[c]||0)/WEEKS:state.limits[c]||0;return a;},{});
+
+  // ── View toggle ──
+  const toggleRow=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}});
+  const togglePill=h("div",{style:{display:"flex",background:C.gray4,borderRadius:99,padding:3,border:"1px solid "+C.border}});
+  ["monthly","weekly"].forEach(v=>{
+    const btn=h("button",{style:{padding:"5px 16px",borderRadius:99,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",background:state.dashView===v?C.grove:"transparent",color:state.dashView===v?"#fff":C.gray2,transition:"all 0.15s"},onClick:()=>{state.dashView=v;render();}},v.charAt(0).toUpperCase()+v.slice(1));
+    togglePill.appendChild(btn);
+  });
+  toggleRow.appendChild(h("div",{style:{fontSize:12,color:C.gray2,fontWeight:500}},isWeekly?"This week · "+startOfWeek.toLocaleDateString("en-BH",{day:"numeric",month:"short"})+" – "+endOfWeek.toLocaleDateString("en-BH",{day:"numeric",month:"short"}):"This month · "+now.toLocaleString("en",{month:"long",year:"numeric"})));
+  toggleRow.appendChild(togglePill);
+  el.appendChild(toggleRow);
+
+  // ── Stat cards ──
   const grid=h("div",{className:"grid2"});
-  [[`Total Income`,fmt(d.totalIncome),"Salary + carry-forward",C.grove,C.mint],[`Total Spent`,fmt(d.totalSpent),"This month so far",C.coral,C.coralLight],[`End-of-Month Est.`,fmt(d.projSpend),"At current daily pace",d.projSpend>d.totalIncome?C.coral:C.teal,d.projSpend>d.totalIncome?C.coralLight:C.tealLight],["Days Left",dl+" days","Left this month",C.amber,C.amberLight]].forEach(([l,v,sub,col,bg])=>{
+  [
+    [isWeekly?"Weekly Income":"Total Income", fmt(dispIncome), isWeekly?"Salary ÷ 4.3 weeks":"Salary + carry-forward", C.grove, C.mint],
+    [isWeekly?"Week Spent":"Total Spent", fmt(dispSpent), isWeekly?"This week so far":"This month so far", C.coral, C.coralLight],
+    [isWeekly?"Week Balance":"End-of-Month Est.", isWeekly?fmt(dispBalance):fmt(d.projSpend), isWeekly?"Income minus spending":"At current daily pace", dispBalance<0||d.projSpend>d.totalIncome?C.coral:C.teal, dispBalance<0||d.projSpend>d.totalIncome?C.coralLight:C.tealLight],
+    [isWeekly?"Days Left":"Days Left", dispDaysLeft+(isWeekly?" days":" days"), isWeekly?"Left this week":"Left this month", C.amber, C.amberLight]
+  ].forEach(([l,v,sub,col,bg])=>{
     const c=h("div",{className:"stat-card",style:{background:bg,borderColor:col+"33"}});
     c.appendChild(h("div",{className:"lbl",style:{color:col}},l));
     c.appendChild(h("div",{className:"num",style:{fontSize:15,color:col}},v));
@@ -475,27 +522,36 @@ function renderDashboard(el,d){
   });
   el.appendChild(grid);
 
-  if(d.iOwe>0||d.owedToMe>0){
+  // ── Debt banners (monthly only) ──
+  if(!isWeekly&&(d.iOwe>0||d.owedToMe>0)){
     const dg=h("div",{className:"grid2"});
     if(d.iOwe>0) dg.appendChild(h("div",{className:"stat-card alert-neg"},[h("div",{className:"lbl",style:{color:C.coralDark}},"You Owe"),h("div",{className:"num",style:{fontSize:16,color:C.coralDark}},fmt(d.iOwe))]));
     if(d.owedToMe>0) dg.appendChild(h("div",{className:"stat-card alert-pos"},[h("div",{className:"lbl",style:{color:C.teal}},"Owed to You"),h("div",{className:"num",style:{fontSize:16,color:C.teal}},fmt(d.owedToMe))]));
     el.appendChild(dg);
   }
-  if(d.overBudget.length>0) el.appendChild(h("div",{className:"alert alert-warn"},[h("div",{style:{color:"#8a5a00",fontWeight:600,marginBottom:4,fontSize:13}},"⚠ Over Budget"),h("div",{style:{fontSize:12,color:"#8a5a00"}},d.overBudget.join(", "))]));
 
-  // Spending category grid
+  // ── Over budget alert ──
+  const overBudgetView=CATS.filter(c=>(dispByCat[c]||0)>dispLimits[c]);
+  if(overBudgetView.length>0) el.appendChild(h("div",{className:"alert alert-warn"},[h("div",{style:{color:"#8a5a00",fontWeight:600,marginBottom:4,fontSize:13}},"⚠ Over "+(isWeekly?"Weekly":"Monthly")+" Budget"),h("div",{style:{fontSize:12,color:"#8a5a00"}},overBudgetView.join(", "))]));
+
+  // ── Spending by Category ──
   const spCard=h("div",{className:"card"});
-  spCard.appendChild(h("div",{className:"card-title"},"Spending by Category"));
+  const spHdr=h("div",{className:"sec-hdr"});
+  spHdr.appendChild(h("div",{className:"card-title",style:{margin:0}},"Spending by Category"));
+  if(isWeekly) spHdr.appendChild(h("div",{style:{fontSize:10,color:C.teal,background:C.tealLight,padding:"3px 8px",borderRadius:99,fontWeight:600}},"Weekly limits"));
+  spCard.appendChild(spHdr);
   const catGrid=h("div",{className:"cat-grid"});
-  CATS.filter(c=>d.byCat[c]>0||state.limits[c]>0).forEach(cat=>{
-    const pct=Math.min((d.byCat[cat]/state.limits[cat])*100,100);
-    const over=d.byCat[cat]>state.limits[cat];
+  CATS.filter(c=>(dispByCat[c]||0)>0||(dispLimits[c]||0)>0).forEach(cat=>{
+    const spent=dispByCat[cat]||0;
+    const limit=dispLimits[cat]||0;
+    const pct=limit>0?Math.min((spent/limit)*100,100):0;
+    const over=spent>limit&&limit>0;
     const col=over?C.coral:CAT_COLORS[cat];
     const card=h("div",{className:"cat-card"});
     card.appendChild(h("div",{className:"cat-icon-circle",style:{background:col+"20"}},(CAT_ICONS[cat]||"📦")));
     card.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:3,fontWeight:500}},cat));
-    card.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:12,fontWeight:700,color:over?C.coral:C.gray1,marginBottom:2}},"BD "+Number(d.byCat[cat]).toFixed(3)));
-    card.appendChild(h("div",{style:{fontSize:9,color:C.gray2,marginBottom:8}},"of BD "+Number(state.limits[cat]).toFixed(3)));
+    card.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:12,fontWeight:700,color:over?C.coral:C.gray1,marginBottom:2}},"BD "+Number(spent).toFixed(3)));
+    card.appendChild(h("div",{style:{fontSize:9,color:C.gray2,marginBottom:8}},"of BD "+Number(limit).toFixed(3)));
     const track=h("div",{style:{width:"100%",background:C.bg,borderRadius:99,height:4,overflow:"hidden"}});
     track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:col,borderRadius:99}}));
     card.appendChild(track);
@@ -504,8 +560,8 @@ function renderDashboard(el,d){
   spCard.appendChild(catGrid);
   el.appendChild(spCard);
 
-  // Goals snapshot
-  if(state.goals.length>0){
+  // ── Goals (monthly only) ──
+  if(!isWeekly&&state.goals.length>0){
     const gCard=h("div",{className:"card"});
     const ghdr=h("div",{className:"sec-hdr"});
     ghdr.appendChild(h("div",{className:"card-title",style:{margin:0}},"🎯 Goals"));
@@ -536,7 +592,7 @@ function renderDashboard(el,d){
     el.appendChild(gCard);
   }
 
-  // Quick log
+  // ── Quick log ──
   const qlCard=h("div",{className:"card"});
   qlCard.appendChild(h("div",{className:"card-title"},"⚡ Quick Log"));
   const qlGrid=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}});
@@ -999,11 +1055,20 @@ async function sendChat(){
 function renderProfile(el,d){
   if(!state.profile) state.profile={name:"",email:"",mobile:"",newsletter:true};
 
-  // Avatar + name
+  // Avatar + name — use Google photo if available
   const topCard=h("div",{className:"card",style:{textAlign:"center",padding:"24px 18px"}});
-  topCard.appendChild(h("div",{className:"profile-avatar"},(state.profile.name||"H").charAt(0).toUpperCase()));
+  if(currentUser&&currentUser.photoURL){
+    const img=h("img",{style:{width:80,height:80,borderRadius:"50%",objectFit:"cover",margin:"0 auto 12px",display:"block",border:"3px solid "+C.grove+"33"}});
+    img.src=currentUser.photoURL;
+    topCard.appendChild(img);
+  } else {
+    topCard.appendChild(h("div",{className:"profile-avatar"},(state.profile.name||"H").charAt(0).toUpperCase()));
+  }
   topCard.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:20,fontWeight:700,color:C.gray1,marginBottom:4}},state.profile.name||"Your Name"));
-  topCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2}},state.profile.email||"Add your email below"));
+  topCard.appendChild(h("div",{style:{fontSize:12,color:C.gray2,marginBottom:currentUser?12:0}},state.profile.email||"Add your email below"));
+  if(currentUser){
+    topCard.appendChild(h("div",{style:{display:"inline-flex",alignItems:"center",gap:6,background:C.mint,borderRadius:99,padding:"4px 12px",fontSize:11,color:C.grove,fontWeight:600}},"✓ Signed in with Google"));
+  }
   el.appendChild(topCard);
 
   // Personal info
@@ -1099,6 +1164,12 @@ function renderProfile(el,d){
   // App settings
   const resetCard=h("div",{className:"card"});
   resetCard.appendChild(h("div",{className:"card-title"},"⚙️ App Settings"));
+  if(currentUser){
+    const signOutBtn=h("button",{style:{background:"#fff",color:C.grove,border:"1px solid "+C.grove+"66",borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:600,width:"100%",marginBottom:10}});
+    signOutBtn.textContent="Sign Out";
+    signOutBtn.addEventListener("click",()=>{if(confirm("Sign out of Hisabi?")){signOut();}});
+    resetCard.appendChild(signOutBtn);
+  }
   const resetBtn=h("button",{style:{background:"#fff",color:C.coralDark,border:"1px solid "+C.coral+"66",borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:500,width:"100%"}},"Reset All Data");
   resetBtn.addEventListener("click",()=>{if(confirm("Reset all data? This cannot be undone.")){localStorage.clear();location.reload();}});
   resetCard.appendChild(resetBtn);
@@ -1164,7 +1235,138 @@ function quickLog(s){
   render();
 }
 
-render();
+// ══════════════════════════════════════════════════════════════════════════
+// FIREBASE INIT & GOOGLE AUTH
+// ══════════════════════════════════════════════════════════════════════════
+const firebaseConfig={
+  apiKey:"AIzaSyAUBh4tFM2mL-lg--31qY5wMjnzbVn0wzA",
+  authDomain:"hisabi-28018.firebaseapp.com",
+  projectId:"hisabi-28018",
+  storageBucket:"hisabi-28018.firebasestorage.app",
+  messagingSenderId:"365148761689",
+  appId:"1:365148761689:web:2db6ad71279ae2cec98b48"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth();
+const db=firebase.firestore();
+let currentUser=null;
+
+// Load user data from Firestore
+async function loadUserData(uid){
+  try{
+    const doc=await db.collection("users").doc(uid).get();
+    if(doc.exists){
+      const data=doc.data();
+      // Merge saved data into state
+      Object.assign(state,data);
+      // Restore profile from Google if not set
+      if(!state.profile.name&&currentUser.displayName) state.profile.name=currentUser.displayName;
+      if(!state.profile.email&&currentUser.email) state.profile.email=currentUser.email;
+    } else {
+      // New user — pre-fill profile from Google
+      state.profile.name=currentUser.displayName||"";
+      state.profile.email=currentUser.email||"";
+    }
+  }catch(e){console.log("Load error",e);}
+}
+
+// Save user data to Firestore
+async function saveToCloud(){
+  if(!currentUser)return;
+  try{
+    const toSave={...state};
+    // Don't save transient UI state
+    delete toSave.chatLoading;delete toSave.importLoading;delete toSave.importResult;
+    delete toSave.showScForm;delete toSave.showDebtForm;delete toSave.showGoalForm;
+    delete toSave.showAddCat;delete toSave.editingShortcuts;delete toSave.editingScId;
+    delete toSave.editingCat;delete toSave.editingGoalId;delete toSave.showImportInfo;
+    await db.collection("users").doc(currentUser.uid).set(toSave,{merge:true});
+  }catch(e){console.log("Save error",e);}
+}
+
+// Override saveState to also save to cloud
+const origSaveState=saveState;
+function saveState(){
+  origSaveState();
+  saveToCloud();
+}
+
+// Google Sign-In
+async function signInWithGoogle(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  try{
+    await auth.signInWithPopup(provider);
+  }catch(e){
+    // Popup blocked on some mobile browsers — try redirect
+    await auth.signInWithRedirect(provider);
+  }
+}
+
+function signOut(){
+  auth.signOut().then(()=>{
+    currentUser=null;
+    localStorage.removeItem("hisabi_setup_done");
+    render();
+  });
+}
+
+// Auth state listener — boots the app
+auth.onAuthStateChanged(async user=>{
+  if(user){
+    currentUser=user;
+    await loadUserData(user.uid);
+    render();
+  } else {
+    currentUser=null;
+    render();
+  }
+});
+
+// Override render to show sign-in screen if not authenticated
+const _render=render;
+function render(){
+  if(typeof currentUser==="undefined") return; // still loading
+  if(!currentUser){renderSignIn();return;}
+  _render();
+}
+
+function renderSignIn(){
+  const root=document.getElementById("root");
+  root.innerHTML="";
+  const el=h("div",{className:"landing"});
+  el.appendChild(h("div",{className:"landing-logo"},"Hisabi"));
+  el.appendChild(h("div",{className:"landing-arabic"},"حسابي"));
+  el.appendChild(h("div",{className:"landing-tagline"},"Your personal finance tracker, built for Bahrain."));
+  el.appendChild(h("div",{className:"landing-sub"},"Sign in to access your finances securely from any device."));
+
+  const features=h("div",{className:"landing-features"});
+  [["⚡","Quick-log daily payments like Karak in one tap"],["🎯","Save toward your goals with deadlines"],["🤖","AI assistant that knows your finances"],["📄","Import bank statements automatically"]].forEach(([icon,text])=>{
+    const f=h("div",{className:"landing-feature"});
+    f.appendChild(h("div",{className:"landing-feature-icon"},icon));
+    f.appendChild(h("div",{className:"landing-feature-text"},text));
+    features.appendChild(f);
+  });
+  el.appendChild(features);
+
+  // Google Sign-In button
+  const googleBtn=h("button",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:12,background:"#fff",color:"#2C2C2A",border:"none",borderRadius:14,padding:"14px 28px",fontSize:15,fontWeight:600,cursor:"pointer",width:"100%",maxWidth:300,boxShadow:"0 4px 20px rgba(0,0,0,0.15)",fontFamily:"'Plus Jakarta Sans',sans-serif",marginBottom:14}},onClick:signInWithGoogle);
+
+  // Google logo SVG
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width","20");svg.setAttribute("height","20");svg.setAttribute("viewBox","0 0 48 48");
+  svg.innerHTML='<path fill="#FFC107" d="M43.6 20H24v8h11.3C33.7 33.3 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.5 29.3 4.5 24 4.5 13.3 4.5 4.5 13.3 4.5 24S13.3 43.5 24 43.5c10.5 0 19.5-7.5 19.5-19.5 0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34 6.5 29.3 4.5 24 4.5c-7.6 0-14.1 4.4-17.7 10.2z"/><path fill="#4CAF50" d="M24 43.5c5.2 0 9.9-1.9 13.4-5.1l-6.2-5.2C29.3 34.9 26.8 36 24 36c-5.2 0-9.7-2.7-11.3-7H6.3C9.8 39 16.3 43.5 24 43.5z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.2 5.2C41 35.1 44 30 44 24c0-1.3-.1-2.7-.4-4z"/>';
+  googleBtn.appendChild(svg);
+  googleBtn.appendChild(document.createTextNode("Continue with Google"));
+  el.appendChild(googleBtn);
+
+  el.appendChild(h("div",{style:{fontSize:11,color:"#5a6145",textAlign:"center",maxWidth:260,lineHeight:1.6}},"Your data is saved securely to your Google account and accessible on any device."));
+  root.appendChild(el);
+}
+
+// Initial boot — wait for Firebase auth check
+// (auth.onAuthStateChanged handles the first render)
+
 </script>
 </body>
 </html>
