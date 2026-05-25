@@ -226,6 +226,9 @@ function h(tag,attrs,children){
 // ── State ──────────────────────────────────────────────────────────────────
 const defaultState={
   tab:"dashboard", moneyTab:"transactions", planTab:"budget", dashView:"monthly",
+  loans:[],
+  showLoanForm:false, newLoan:{name:"",purpose:"💡 Other",total:"",paid:"",monthly:"",payDay:"",endDate:"",color:""},
+  editingLoanId:null, editLoan:null, loanPayInputs:{},
   salary:0, carry:0, sides:[], txs:[], msgs:[{role:"assistant",text:"مرحبا! I'm your Hisabi assistant 👋\n\nAsk me anything — 'Am I on track?', 'When can I afford my goal?', 'Analyse my spending habits'"}],
   limits:{Housing:500,Food:150,Transport:80,Utilities:60,Entertainment:50,Health:60,Shopping:100,Savings:150,Other:60},
   goals:[], shortcuts:[{id:1,label:"Karak",icon:"☕",amount:0.1,category:"Food",color:C.amber},{id:2,label:"Parking",icon:"🅿️",amount:0.2,category:"Transport",color:C.teal}],
@@ -309,7 +312,8 @@ function renderLanding(root){
 // ONBOARDING
 // ══════════════════════════════════════════════════════════════════════════
 let onboardStep=1;
-const onboardData={name:"",salary:"",goals:[]};
+const TOTAL_STEPS=5;
+const onboardData={name:"",salary:"",spendingHabit:"",goals:[],hasLoan:null,loanName:"",loanTotal:"",loanMonthly:"",loanPaid:"",loanDay:"",loanEnd:"",loanPurpose:"",prefs:{weeklyReview:false,spendingAlerts:true,weeklySummary:false}};
 const goalOptions=[
   {icon:"💍",name:"Get Engaged / Married",desc:"Save toward a life milestone"},
   {icon:"✈️",name:"Travel & Vacation",desc:"Plan your next trip"},
@@ -318,93 +322,163 @@ const goalOptions=[
   {icon:"🎓",name:"Education / Course",desc:"Invest in yourself"},
   {icon:"🚗",name:"Buy a Car",desc:"Save for your next vehicle"},
 ];
+const habitOptions=[
+  {icon:"🐿️",value:"saver",label:"Natural Saver",desc:"I think before I spend and always try to save"},
+  {icon:"💸",value:"spender",label:"Free Spender",desc:"I enjoy spending and live in the moment"},
+  {icon:"⚖️",value:"balanced",label:"Somewhere in between",desc:"I try to balance spending and saving"},
+  {icon:"🎯",value:"improving",label:"Trying to improve",desc:"I want to get better at managing my money"},
+];
 
 function renderOnboarding(root){
   root.innerHTML="";
-  const totalSteps=3;
   const el=h("div",{className:"onboard"});
-
-  // Progress bar
   const prog=h("div",{className:"progress-bar"});
-  prog.appendChild(h("div",{className:"progress-fill",style:{width:((onboardStep/totalSteps)*100)+"%"}}));
+  prog.appendChild(h("div",{className:"progress-fill",style:{width:((onboardStep/TOTAL_STEPS)*100)+"%"}}));
   el.appendChild(prog);
-
-  // Header
   const ohdr=h("div",{className:"onboard-header"});
-  if(onboardStep>1) ohdr.appendChild(h("button",{style:{background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.gray2},onClick:()=>{onboardStep--;renderOnboarding(root);}},"←"));
+  if(onboardStep>1){const back=document.createElement("button");back.style.cssText="background:none;border:none;cursor:pointer;font-size:18px;color:"+C.gray2+";margin-right:8px;";back.textContent="←";back.addEventListener("click",()=>{onboardStep--;renderOnboarding(root);});ohdr.appendChild(back);}
   const hdrtxt=h("div");
-  hdrtxt.appendChild(h("div",{className:"onboard-step"},"Step "+onboardStep+" of "+totalSteps));
-  hdrtxt.appendChild(h("div",{className:"onboard-title"},[
-    "Welcome to Hisabi",
-    "Your salary",
-    "Your goals"
-  ][onboardStep-1]));
-  ohdr.appendChild(hdrtxt);
-  el.appendChild(ohdr);
-
-  // Body
+  hdrtxt.appendChild(h("div",{className:"onboard-step"},"Step "+onboardStep+" of "+TOTAL_STEPS));
+  hdrtxt.appendChild(h("div",{className:"onboard-title"},["Welcome to Hisabi 👋","Your monthly salary","Your spending style","What are you saving for?","Do you have a loan?"][onboardStep-1]));
+  ohdr.appendChild(hdrtxt);el.appendChild(ohdr);
   const body=h("div",{className:"onboard-body"});
 
   if(onboardStep===1){
-    // Step 1 — Name
     body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:24,lineHeight:1.6}},"Let's personalise Hisabi for you. What should we call you?"));
-    const nameInp=h("input",{className:"inp",placeholder:"Your first name",value:onboardData.name,style:{fontSize:16,padding:"14px"}});
-    nameInp.addEventListener("input",e=>onboardData.name=e.target.value);
-    body.appendChild(nameInp);
-    body.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:8}}),"Used to personalise your experience. You can change this later.");
+    const ni=h("input",{className:"inp",placeholder:"Your first name",value:onboardData.name,style:{fontSize:18,padding:"14px"}});
+    ni.addEventListener("input",e=>onboardData.name=e.target.value);
+    body.appendChild(ni);
+    body.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:8}},"Used to personalise your experience. You can change this later."));
 
   } else if(onboardStep===2){
-    // Step 2 — Salary
-    const name=onboardData.name||"there";
-    body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:24,lineHeight:1.6}},"Nice to meet you, "+name+"! What's your monthly salary in BHD?"));
-    const salInp=h("input",{className:"inp",placeholder:"e.g. 1200.000",type:"number",step:"0.001",value:onboardData.salary,style:{fontSize:18,padding:"14px",fontFamily:"'Lora',serif"}});
-    salInp.addEventListener("input",e=>onboardData.salary=e.target.value);
-    body.appendChild(salInp);
-    body.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:8}}),"This helps Hisabi calculate your balance and spending limits. You can update it anytime.");
+    body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:24,lineHeight:1.6}},"Nice to meet you, "+(onboardData.name||"there")+"! What is your monthly salary in BHD?"));
+    const si=h("input",{className:"inp",placeholder:"e.g. 1200.000",type:"number",step:"0.001",value:onboardData.salary,style:{fontSize:20,padding:"16px",fontFamily:"'Lora',serif",textAlign:"center"}});
+    si.addEventListener("input",e=>onboardData.salary=e.target.value);
+    body.appendChild(si);
+    body.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:8,textAlign:"center"}},"This helps calculate your balance and budget limits."));
 
   } else if(onboardStep===3){
-    // Step 3 — Goals
+    body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:20,lineHeight:1.6}},"How would you describe your spending style?"));
+    habitOptions.forEach(opt=>{
+      const sel=onboardData.spendingHabit===opt.value;
+      const card=document.createElement("div");
+      card.style.cssText="border:2px solid "+(sel?C.grove:C.border)+";border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;background:"+(sel?C.mint:"#fff")+";display:flex;align-items:center;gap:12px;";
+      const ico=document.createElement("div");ico.style.fontSize="28px";ico.style.flexShrink="0";ico.textContent=opt.icon;
+      const txt=document.createElement("div");
+      const lbl=document.createElement("div");lbl.style.cssText="font-size:13px;font-weight:600;color:"+(sel?C.grove:C.gray1)+";";lbl.textContent=opt.label;
+      const dsc=document.createElement("div");dsc.style.cssText="font-size:11px;color:"+C.gray2+";margin-top:2px;";dsc.textContent=opt.desc;
+      txt.appendChild(lbl);txt.appendChild(dsc);
+      card.appendChild(ico);card.appendChild(txt);
+      if(sel){const chk=document.createElement("div");chk.style.cssText="color:"+C.grove+";font-size:20px;margin-left:auto;";chk.textContent="✓";card.appendChild(chk);}
+      card.addEventListener("click",()=>{onboardData.spendingHabit=opt.value;renderOnboarding(root);});
+      body.appendChild(card);
+    });
+
+  } else if(onboardStep===4){
     body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:20,lineHeight:1.6}},"What are you saving toward? Pick all that apply."));
     goalOptions.forEach(g=>{
       const sel=onboardData.goals.includes(g.name);
-      const opt=h("div",{className:"goal-option"+(sel?" sel":""),onClick:()=>{
-        if(sel) onboardData.goals=onboardData.goals.filter(x=>x!==g.name);
-        else onboardData.goals.push(g.name);
-        renderOnboarding(root);
-      }});
+      const opt=h("div",{className:"goal-option"+(sel?" sel":"")});
       opt.appendChild(h("div",{className:"goal-option-icon"},g.icon));
       const txt=h("div",{className:"goal-option-text"});
       txt.appendChild(h("div",{className:"goal-option-name"},g.name));
       txt.appendChild(h("div",{className:"goal-option-desc"},g.desc));
       opt.appendChild(txt);
-      if(sel) opt.appendChild(h("div",{style:{color:C.grove,fontSize:18}},"✓"));
+      if(sel)opt.appendChild(h("div",{style:{color:C.grove,fontSize:18}},"✓"));
+      opt.addEventListener("click",()=>{if(sel)onboardData.goals=onboardData.goals.filter(x=>x!==g.name);else onboardData.goals.push(g.name);renderOnboarding(root);});
       body.appendChild(opt);
+    });
+
+  } else if(onboardStep===5){
+    body.appendChild(h("div",{style:{fontSize:14,color:C.gray2,marginBottom:20,lineHeight:1.6}},"Do you have any active loans? This is very common in Bahrain and Hisabi has a dedicated loan tracker."));
+    const yesno=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}});
+    [["✅","Yes, I do",true],["❌","No, I don't",false]].forEach(([icon,label,val])=>{
+      const btn=document.createElement("div");
+      btn.style.cssText="border:2px solid "+(onboardData.hasLoan===val?C.grove:C.border)+";border-radius:12px;padding:16px;text-align:center;cursor:pointer;background:"+(onboardData.hasLoan===val?C.mint:"#fff")+";";
+      const ic=document.createElement("div");ic.style.cssText="font-size:28px;margin-bottom:6px;";ic.textContent=icon;
+      const lb=document.createElement("div");lb.style.cssText="font-size:13px;font-weight:600;color:"+(onboardData.hasLoan===val?C.grove:C.gray1)+";";lb.textContent=label;
+      btn.appendChild(ic);btn.appendChild(lb);
+      btn.addEventListener("click",()=>{onboardData.hasLoan=val;renderOnboarding(root);});
+      yesno.appendChild(btn);
+    });
+    body.appendChild(yesno);
+    if(onboardData.hasLoan){
+      body.appendChild(h("div",{style:{fontSize:13,color:C.grove,fontWeight:600,marginBottom:12}},"Add your first loan (optional):"));
+      const lc=h("div",{style:{background:C.gray4,borderRadius:12,padding:14,border:"1px solid "+C.border}});
+      const lf=h("div",{className:"form-row"});
+      const inputs=[
+        ["loanName","inp form-full","Loan name (e.g. Car Loan - NBB)","text"],
+        ["loanTotal","inp","Total amount (BD)","number"],
+        ["loanMonthly","inp","Monthly installment (BD)","number"],
+        ["loanPaid","inp","Amount paid so far (BD)","number"],
+        ["loanDay","inp","Payment day (e.g. 15)","number"],
+      ];
+      inputs.forEach(([key,cls,ph,type])=>{
+        const inp=h("input",{className:cls,placeholder:ph,type:type,step:"0.001",value:onboardData[key]||""});
+        inp.addEventListener("input",e=>onboardData[key]=e.target.value);
+        lf.appendChild(inp);
+      });
+      const lend=h("div",{className:"form-full"});
+      lend.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:4}},"Loan end date"));
+      const lendI=h("input",{className:"inp",type:"date",value:onboardData.loanEnd||""});
+      lendI.addEventListener("change",e=>onboardData.loanEnd=e.target.value);
+      lend.appendChild(lendI);lf.appendChild(lend);
+      const lpur=h("div",{className:"form-full"});
+      lpur.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:6}},"Purpose of loan"));
+      const purps=h("div",{style:{display:"flex",flexWrap:"wrap",gap:6}});
+      ["🚗 Car","🏠 Home","💼 Personal","🎓 Education","💊 Medical","💡 Other"].forEach(p=>{
+        const pill=document.createElement("button");
+        pill.style.cssText="padding:5px 10px;border-radius:99px;font-size:11px;cursor:pointer;border:1px solid "+(onboardData.loanPurpose===p?C.grove:C.gray3)+";background:"+(onboardData.loanPurpose===p?C.mint:"#fff")+";color:"+(onboardData.loanPurpose===p?C.grove:C.gray2)+";font-family:'Plus Jakarta Sans',sans-serif;";
+        pill.textContent=p;
+        pill.addEventListener("click",()=>{onboardData.loanPurpose=p;renderOnboarding(root);});
+        purps.appendChild(pill);
+      });
+      lpur.appendChild(purps);lf.appendChild(lpur);
+      lc.appendChild(lf);body.appendChild(lc);
+    }
+    body.appendChild(h("div",{style:{fontSize:13,color:C.gray1,fontWeight:600,marginTop:20,marginBottom:12}},"⚙️ Your Preferences"));
+    [["weeklyReview","📅 Weekly budget review","Remind me to review my budget each week"],["spendingAlerts","⚠️ Spending alerts","Warn me when I'm close to a category limit"],["weeklySummary","📊 Weekly summary","Show me a weekly summary of my spending"]].forEach(([key,label,desc])=>{
+      const row=document.createElement("div");
+      row.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:12px 14px;background:#fff;border-radius:10px;border:1px solid "+C.border+";";
+      const left=document.createElement("div");
+      const lb=document.createElement("div");lb.style.cssText="font-size:13px;font-weight:500;color:"+C.gray1+";";lb.textContent=label;
+      const dc=document.createElement("div");dc.style.cssText="font-size:11px;color:"+C.gray2+";margin-top:2px;";dc.textContent=desc;
+      left.appendChild(lb);left.appendChild(dc);row.appendChild(left);
+      const tog=document.createElement("button");
+      tog.style.cssText="width:44px;height:24px;border-radius:99px;background:"+(onboardData.prefs[key]?C.grove:C.gray3)+";border:none;cursor:pointer;position:relative;flex-shrink:0;";
+      const knob=document.createElement("div");
+      knob.style.cssText="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;left:"+(onboardData.prefs[key]?"22px":"2px")+";transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);";
+      tog.appendChild(knob);
+      tog.addEventListener("click",()=>{onboardData.prefs[key]=!onboardData.prefs[key];renderOnboarding(root);});
+      row.appendChild(tog);body.appendChild(row);
     });
   }
 
   el.appendChild(body);
-
-  // Footer
   const footer=h("div",{className:"onboard-footer"});
-  const isLast=onboardStep===totalSteps;
-  const nextBtn=h("button",{className:"btn-primary",style:{marginTop:0},onClick:()=>{
-    if(onboardStep<totalSteps){onboardStep++;renderOnboarding(root);}
+  const isLast=onboardStep===TOTAL_STEPS;
+  const nextBtn=h("button",{className:"btn-primary",style:{marginTop:0}});
+  nextBtn.textContent=isLast?"Let's go! 🎉":"Continue →";
+  nextBtn.addEventListener("click",()=>{
+    if(onboardStep<TOTAL_STEPS){onboardStep++;renderOnboarding(root);}
     else{
-      // Finish onboarding
       state.profile.name=onboardData.name||"";
       state.salary=Number(onboardData.salary)||0;
-      // Add selected goals
+      state.spendingHabit=onboardData.spendingHabit||"balanced";
+      state.preferences=onboardData.prefs;
       onboardData.goals.forEach(gname=>{
         const match=goalOptions.find(x=>x.name===gname);
-        if(match) state.goals.push({id:Date.now()+Math.random(),name:gname,icon:match.icon,color:C.grove,target:0,saved:0,freq:"monthly",freqAmount:0,deadline:"",type:"save"});
+        if(match)state.goals.push({id:Date.now()+Math.random(),name:gname,icon:match.icon,color:C.grove,target:0,saved:0,freq:"monthly",freqAmount:0,deadline:"",type:"save"});
       });
+      if(onboardData.hasLoan&&onboardData.loanName&&onboardData.loanTotal){
+        if(!state.loans)state.loans=[];
+        state.loans.push({id:Date.now(),name:onboardData.loanName,purpose:onboardData.loanPurpose||"💡 Other",total:Number(onboardData.loanTotal)||0,paid:Number(onboardData.loanPaid)||0,monthly:Number(onboardData.loanMonthly)||0,payDay:Number(onboardData.loanDay)||1,endDate:onboardData.loanEnd||"",color:C.grove});
+      }
       markSetup();render();
     }
-  }},isLast?"Let's go! 🎉":"Continue →");
+  });
   footer.appendChild(nextBtn);
-  if(onboardStep===totalSteps){
-    footer.appendChild(h("button",{style:{background:"none",border:"none",cursor:"pointer",fontSize:12,color:C.gray2,marginTop:8,display:"block",width:"100%",textAlign:"center"},onClick:()=>{markSetup();render();}},"Skip for now"));
-  }
+  if(isLast){const skip=document.createElement("button");skip.style.cssText="background:none;border:none;cursor:pointer;font-size:12px;color:"+C.gray2+";margin-top:10px;display:block;width:100%;text-align:center;";skip.textContent="Skip for now";skip.addEventListener("click",()=>{markSetup();render();});footer.appendChild(skip);}
   el.appendChild(footer);
   root.appendChild(el);
 }
@@ -692,7 +766,7 @@ function renderTransactions(el,d){
   const tDesc=h("input",{className:"inp",placeholder:"Description",value:state.newTx.desc});tDesc.addEventListener("input",e=>state.newTx.desc=e.target.value);
   const tAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newTx.amount});tAmt.addEventListener("input",e=>state.newTx.amount=e.target.value);
   txFr.appendChild(tDate);txFr.appendChild(tCat);txFr.appendChild(tDesc);txFr.appendChild(tAmt);txCard.appendChild(txFr);
-  txCard.appendChild(h("button",{className:"btn-primary",onClick:()=>{if(!state.newTx.desc||!state.newTx.amount)return;state.txs.push({...state.newTx,id:Date.now(),amount:Number(state.newTx.amount)});state.newTx={date:tod(),desc:"",amount:"",category:"Food"};render();}},"+ Add Transaction"));
+  txCard.appendChild(h("button",{className:"btn-primary",onClick:()=>{if(!state.newTx.desc||!state.newTx.amount)return;state.txs.push({...state.newTx,id:Date.now(),ts:new Date().toISOString(),amount:Number(state.newTx.amount)});state.newTx={date:tod(),desc:"",amount:"",category:"Food"};render();}},"+ Add Transaction"));
   el.appendChild(txCard);
 
   // Side income
@@ -703,19 +777,21 @@ function renderTransactions(el,d){
   const sAmt=h("input",{className:"inp",placeholder:"Amount (BD)",type:"number",step:"0.001",value:state.newSide.amount});sAmt.addEventListener("input",e=>state.newSide.amount=e.target.value);
   const sDesc=h("input",{className:"inp form-full",placeholder:"Source",value:state.newSide.desc});sDesc.addEventListener("input",e=>state.newSide.desc=e.target.value);
   sFr.appendChild(sDate);sFr.appendChild(sAmt);sFr.appendChild(sDesc);sCard.appendChild(sFr);
-  sCard.appendChild(h("button",{className:"btn-income",onClick:()=>{if(!state.newSide.desc||!state.newSide.amount)return;state.sides.push({...state.newSide,id:Date.now(),amount:Number(state.newSide.amount)});state.newSide={date:tod(),desc:"",amount:""};render();}},"+ Add Income"));
+  sCard.appendChild(h("button",{className:"btn-income",onClick:()=>{if(!state.newSide.desc||!state.newSide.amount)return;state.sides.push({...state.newSide,id:Date.now(),ts:new Date().toISOString(),amount:Number(state.newSide.amount)});state.newSide={date:tod(),desc:"",amount:""};render();}},"+ Add Income"));
   el.appendChild(sCard);
 
   // Transaction list
   const lCard=h("div",{className:"card"});
   lCard.appendChild(h("div",{className:"card-title"},"This Month ("+(state.txs.length+state.sides.length)+" entries)"));
-  [...state.sides.map(s=>({...s,isSide:true})),...state.txs].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).forEach(t=>{
+  [...state.sides.map(s=>({...s,isSide:true})),...state.txs].sort((a,b)=>(b.ts||b.date||"").localeCompare(a.ts||a.date||"")).forEach(t=>{
     const row=h("div",{className:"tx-row"});
     const left=h("div",{style:{display:"flex",alignItems:"center",flex:1,minWidth:0}});
     left.appendChild(h("div",{className:"tx-dot",style:{background:t.isSide?C.teal:CAT_COLORS[t.category]||C.gray2}}));
     const info=h("div",{style:{minWidth:0}});
     info.appendChild(h("div",{className:"tx-desc"},t.desc));
-    info.appendChild(h("div",{className:"tx-meta"},t.date+" · "+(t.isSide?"Side Income":t.category)));
+    // Show date + time if available
+    const timeStr=t.ts?new Date(t.ts).toLocaleTimeString("en-BH",{hour:"2-digit",minute:"2-digit"}):"";
+    info.appendChild(h("div",{className:"tx-meta"},t.date+(timeStr?" · "+timeStr:"")+" · "+(t.isSide?"Side Income":t.category)));
     left.appendChild(info);row.appendChild(left);
     const right=h("div",{style:{display:"flex",alignItems:"center",gap:6,flexShrink:0}});
     right.appendChild(h("span",{style:{fontWeight:600,fontSize:13,color:t.isSide?C.teal:C.coral,fontFamily:"'Lora',serif"}},(t.isSide?"+":"-")+fmt(t.amount)));
@@ -811,12 +887,13 @@ function renderHistory(el,d){
 // ══════════════════════════════════════════════════════════════════════════
 function renderPlan(el,d){
   const tabs=h("div",{className:"sub-tabs"});
-  ["budget","goals","payback"].forEach(t=>{
-    tabs.appendChild(h("button",{className:"sub-tab"+(state.planTab===t?" active":""),onClick:()=>{state.planTab=t;render();}},{budget:"📋 Budget",goals:"🎯 Goals",payback:"🤝 Pay Back"}[t]));
+  ["budget","goals","loans","payback"].forEach(t=>{
+    tabs.appendChild(h("button",{className:"sub-tab"+(state.planTab===t?" active":""),onClick:()=>{state.planTab=t;render();}},{budget:"📋 Budget",goals:"🎯 Goals",loans:"🏦 Loans",payback:"🤝 Pay Back"}[t]));
   });
   el.appendChild(tabs);
   if(state.planTab==="budget") renderBudget(el,d);
   else if(state.planTab==="goals") renderGoals(el,d);
+  else if(state.planTab==="loans") renderLoans(el,d);
   else renderDebts(el,d);
 }
 
@@ -911,7 +988,7 @@ function renderGoals(el,d){
     tl.appendChild(info);top.appendChild(tl);
     const tr=h("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}});
     tr.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:20,fontWeight:700,color:g.color}},Math.round(pct)+"%"));
-    tr.appendChild(h("button",{style:{background:isEditing?C.grove:C.gray4,color:isEditing?"#fff":C.gray2,border:"1px solid "+(isEditing?C.grove:C.gray3),borderRadius:8,padding:"4px 12px",fontSize:11,cursor:"pointer",fontWeight:500},onClick:()=>{if(isEditing){state.editingGoalId=null;}else{state.editingGoalId=g.id;state.editGoal={name:g.name,icon:g.icon,color:g.color,target:String(g.target),saved:String(g.saved),freq:g.freq,freqAmount:String(g.freqAmount),deadline:g.deadline||"",type:g.type};}render();}},isEditing?"Done":"Edit"));
+    tr.appendChild(h("button",{style:{background:isEditing?C.grove:C.gray4,color:isEditing?"#fff":C.gray2,border:"1px solid "+(isEditing?C.grove:C.gray3),borderRadius:8,padding:"4px 12px",fontSize:11,cursor:"pointer",fontWeight:500},onClick:()=>{if(isEditing){state.editingGoalId=null;}else{state.editingGoalId=g.id;state.editGoal={name:g.name,icon:g.icon,color:g.color,target:g.target>0?String(g.target):"",saved:g.saved>0?String(g.saved):"",freq:g.freq||"monthly",freqAmount:g.freqAmount>0?String(g.freqAmount):"",deadline:g.deadline||"",type:g.type||"save"};}render();}},isEditing?"Done":"Edit"));
     top.appendChild(tr);card.appendChild(top);
     if(isEditing){
       const panel=h("div",{style:{background:C.gray4,borderRadius:12,padding:14,marginBottom:14,border:"1px solid "+C.grove+"22"}});
@@ -945,6 +1022,208 @@ function renderGoals(el,d){
       cr.appendChild(gi);cr.appendChild(h("button",{style:{background:g.color,color:"#fff",border:"none",borderRadius:10,padding:"0 16px",fontSize:12,cursor:"pointer",fontWeight:600,flexShrink:0},onClick:()=>{const v=Number(state.gInputs[g.id]||0);if(v<=0)return;state.goals=state.goals.map(gg=>gg.id===g.id?{...gg,saved:Math.min(gg.saved+v,gg.target)}:gg);state.gInputs[g.id]="";render();}},"+ Save"));
       card.appendChild(cr);
     }
+    el.appendChild(card);
+  });
+}
+
+// ── Loans ─────────────────────────────────────────────────────────────────
+function renderLoans(el,d){
+  if(!state.loans) state.loans=[];
+
+  // Summary card
+  const totalOwed=state.loans.reduce((s,l)=>s+(l.total-l.paid),0);
+  const totalMonthly=state.loans.reduce((s,l)=>s+l.monthly,0);
+  if(state.loans.length>0){
+    const sumCard=h("div",{className:"card"});
+    const sg=h("div",{className:"grid2"});
+    sg.appendChild(h("div",{className:"stat-card alert-neg"},[h("div",{className:"lbl",style:{color:C.coralDark}},"Total Remaining"),h("div",{className:"num",style:{fontSize:16,color:C.coralDark}},fmt(totalOwed))]));
+    sg.appendChild(h("div",{className:"stat-card alert-warn"},[h("div",{className:"lbl",style:{color:"#8a5a00"}},"Monthly Installments"),h("div",{className:"num",style:{fontSize:16,color:"#8a5a00"}},fmt(totalMonthly))]));
+    sumCard.appendChild(sg);
+    el.appendChild(sumCard);
+  }
+
+  // Header + add button
+  const hCard=h("div",{className:"card"});
+  const hHdr=h("div",{className:"sec-hdr"});
+  hHdr.appendChild(h("div",{className:"card-title",style:{margin:0}},"🏦 My Loans"));
+  hHdr.appendChild(h("button",{className:"btn-ghost",onClick:()=>{state.showLoanForm=!state.showLoanForm;render();}},state.showLoanForm?"✕ Cancel":"+ Add Loan"));
+  hCard.appendChild(hHdr);
+
+  if(state.showLoanForm){
+    const fb=h("div",{className:"form-box"});
+    fb.appendChild(h("div",{style:{fontSize:12,color:C.grove,fontWeight:600,marginBottom:12}},"New Loan"));
+    if(!state.newLoan) state.newLoan={name:"",purpose:"💡 Other",total:"",paid:"",monthly:"",payDay:"",endDate:"",color:C.coral};
+    const fr=h("div",{className:"form-row"});
+    [["name","Loan name (e.g. Car Loan - NBB)","text","form-full"],["total","Total loan amount (BD)","number",""],["paid","Already paid (BD)","number",""],["monthly","Monthly installment (BD)","number",""],["payDay","Payment day of month","number",""]].forEach(([key,ph,type,cls])=>{
+      const inp=h("input",{className:"inp "+cls,placeholder:ph,type:type,step:"0.001",value:state.newLoan[key]||""});
+      inp.addEventListener("input",e=>state.newLoan[key]=e.target.value);
+      fr.appendChild(inp);
+    });
+    const de=h("div",{className:"form-full"});
+    de.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:4}},"Loan end date"));
+    const dei=h("input",{className:"inp",type:"date",value:state.newLoan.endDate||""});
+    dei.addEventListener("change",e=>state.newLoan.endDate=e.target.value);
+    de.appendChild(dei);fr.appendChild(de);
+    const pu=h("div",{className:"form-full"});
+    pu.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:6}},"Purpose"));
+    const pills=h("div",{style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}});
+    ["🚗 Car","🏠 Home","💼 Personal","🎓 Education","💊 Medical","💡 Other"].forEach(p=>{
+      const pill=h("button",{style:{padding:"5px 10px",borderRadius:99,fontSize:11,cursor:"pointer",border:"1px solid "+(state.newLoan.purpose===p?C.grove:C.gray3),background:state.newLoan.purpose===p?C.mint:"#fff",color:state.newLoan.purpose===p?C.grove:C.gray2,fontFamily:"'Plus Jakarta Sans',sans-serif"}});
+      pill.textContent=p;
+      pill.addEventListener("click",()=>{state.newLoan.purpose=p;render();});
+      pills.appendChild(pill);
+    });
+    pu.appendChild(pills);fr.appendChild(pu);
+    fb.appendChild(fr);
+    fb.appendChild(h("button",{className:"btn-primary",style:{marginTop:0},onClick:()=>{
+      if(!state.newLoan.name||!state.newLoan.total)return;
+      state.loans.push({...state.newLoan,id:Date.now(),total:Number(state.newLoan.total)||0,paid:Number(state.newLoan.paid)||0,monthly:Number(state.newLoan.monthly)||0,payDay:Number(state.newLoan.payDay)||1});
+      state.newLoan={name:"",purpose:"💡 Other",total:"",paid:"",monthly:"",payDay:"",endDate:"",color:C.coral};
+      state.showLoanForm=false;render();
+    }},"+ Add Loan"));
+    hCard.appendChild(fb);
+  }
+  el.appendChild(hCard);
+
+  // Empty state
+  if(state.loans.length===0){
+    el.appendChild(h("div",{className:"card",style:{textAlign:"center",padding:"32px 20px",background:C.tealLight,border:"1px solid "+C.tealMid+"44"}},[
+      h("div",{style:{fontSize:36,marginBottom:12}},"🏦"),
+      h("div",{style:{fontSize:14,fontWeight:600,color:C.teal,marginBottom:6}},"No loans tracked yet"),
+      h("div",{style:{fontSize:12,color:C.teal,lineHeight:1.6}},"Add your loans above to track how much you owe and when you'll be free."),
+    ]));
+    return;
+  }
+
+  // Loan cards
+  state.loans.forEach(loan=>{
+    const remaining=loan.total-loan.paid;
+    const pct=loan.total>0?Math.min((loan.paid/loan.total)*100,100):0;
+    const monthsLeft=loan.monthly>0?Math.ceil(remaining/loan.monthly):null;
+    const isEditing=state.editingLoanId===loan.id;
+
+    // Next payment date
+    const now=new Date();
+    let nextPay=new Date(now.getFullYear(),now.getMonth(),loan.payDay);
+    if(nextPay<=now) nextPay=new Date(now.getFullYear(),now.getMonth()+1,loan.payDay);
+    const daysToNext=Math.ceil((nextPay-now)/(1000*60*60*24));
+
+    const card=h("div",{className:"card",style:{borderColor:isEditing?C.grove+"55":C.border}});
+
+    // Top row
+    const top=h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}});
+    const tl=h("div");
+    tl.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:15,fontWeight:700,color:C.gray1,marginBottom:4}},loan.name));
+    tl.appendChild(h("div",{style:{fontSize:11,color:C.gray2}},loan.purpose));
+    if(daysToNext<=7) tl.appendChild(h("div",{style:{fontSize:11,color:C.coral,fontWeight:600,marginTop:4}},"⚠ Payment in "+daysToNext+" days — "+fmt(loan.monthly)));
+    else tl.appendChild(h("div",{style:{fontSize:11,color:C.gray2,marginTop:4}},"Next payment in "+daysToNext+" days"));
+    top.appendChild(tl);
+    const editBtn=h("button",{style:{background:isEditing?C.grove:C.gray4,color:isEditing?"#fff":C.gray2,border:"1px solid "+(isEditing?C.grove:C.gray3),borderRadius:8,padding:"4px 12px",fontSize:11,cursor:"pointer",fontWeight:500}});
+    editBtn.textContent=isEditing?"Done":"Edit";
+    editBtn.addEventListener("click",()=>{
+      if(isEditing){state.editingLoanId=null;}
+      else{state.editingLoanId=loan.id;state.editLoan={...loan,total:String(loan.total),paid:String(loan.paid),monthly:String(loan.monthly),payDay:String(loan.payDay)};}
+      render();
+    });
+    top.appendChild(editBtn);
+    card.appendChild(top);
+
+    // Donut ring chart using SVG
+    const ringWrap=h("div",{style:{display:"flex",alignItems:"center",gap:20,marginBottom:16}});
+    const size=90;const r=36;const circ=2*Math.PI*r;const filled=(pct/100)*circ;
+    const svgNS="http://www.w3.org/2000/svg";
+    const svg=document.createElementNS(svgNS,"svg");
+    svg.setAttribute("width",size);svg.setAttribute("height",size);svg.setAttribute("viewBox","0 0 90 90");
+    // Background circle
+    const bgC=document.createElementNS(svgNS,"circle");
+    bgC.setAttribute("cx","45");bgC.setAttribute("cy","45");bgC.setAttribute("r",r);
+    bgC.setAttribute("fill","none");bgC.setAttribute("stroke",C.border);bgC.setAttribute("stroke-width","10");
+    svg.appendChild(bgC);
+    // Progress circle
+    const pgC=document.createElementNS(svgNS,"circle");
+    pgC.setAttribute("cx","45");pgC.setAttribute("cy","45");pgC.setAttribute("r",r);
+    pgC.setAttribute("fill","none");pgC.setAttribute("stroke",pct>80?C.teal:pct>40?C.amber:C.coral);pgC.setAttribute("stroke-width","10");
+    pgC.setAttribute("stroke-dasharray",filled+" "+circ);pgC.setAttribute("stroke-dashoffset","0");
+    pgC.setAttribute("transform","rotate(-90 45 45)");
+    svg.appendChild(pgC);
+    // Center text
+    const txt=document.createElementNS(svgNS,"text");
+    txt.setAttribute("x","45");txt.setAttribute("y","45");txt.setAttribute("text-anchor","middle");txt.setAttribute("dominant-baseline","central");
+    txt.setAttribute("font-size","16");txt.setAttribute("font-weight","700");txt.setAttribute("fill",C.gray1);
+    txt.textContent=Math.round(pct)+"%";
+    svg.appendChild(txt);
+    const sub=document.createElementNS(svgNS,"text");
+    sub.setAttribute("x","45");sub.setAttribute("y","60");sub.setAttribute("text-anchor","middle");
+    sub.setAttribute("font-size","8");sub.setAttribute("fill",C.gray2);sub.textContent="paid off";
+    svg.appendChild(sub);
+    ringWrap.appendChild(svg);
+
+    // Stats next to ring
+    const stats=h("div",{style:{flex:1}});
+    [["Total Loan",fmt(loan.total),C.gray1],["Paid",fmt(loan.paid),C.teal],["Remaining",fmt(remaining),C.coral],["Monthly",fmt(loan.monthly),C.amber]].forEach(([l,v,col])=>{
+      const row=h("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:6}});
+      row.appendChild(h("span",{style:{fontSize:11,color:C.gray2}},l));
+      row.appendChild(h("span",{style:{fontSize:11,fontWeight:600,color:col,fontFamily:"'Lora',serif"}},v));
+      stats.appendChild(row);
+    });
+    ringWrap.appendChild(stats);
+    card.appendChild(ringWrap);
+
+    // Progress bar + months left
+    const track=h("div",{style:{background:C.bg,borderRadius:99,height:8,overflow:"hidden",marginBottom:6}});
+    track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:pct>80?C.teal:pct>40?C.amber:C.coral,borderRadius:99}}));
+    card.appendChild(track);
+    const meta=h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:10,color:C.gray2,marginBottom:12}});
+    meta.appendChild(h("span",null,Math.round(pct)+"% paid off"));
+    if(monthsLeft) meta.appendChild(h("span",{style:{color:monthsLeft<6?C.coral:C.gray2}},monthsLeft+" months remaining"));
+    if(loan.endDate) meta.appendChild(h("span",null,"Ends "+loan.endDate));
+    card.appendChild(meta);
+
+    // Add payment button
+    if(!isEditing){
+      const payRow=h("div",{style:{display:"flex",gap:8}});
+      const payInp=h("input",{className:"inp",type:"number",step:"0.001",placeholder:"Record a payment (BD)",value:state.loanPayInputs&&state.loanPayInputs[loan.id]||""});
+      payInp.addEventListener("input",e=>{if(!state.loanPayInputs)state.loanPayInputs={};state.loanPayInputs[loan.id]=e.target.value;});
+      payRow.appendChild(payInp);
+      const payBtn=h("button",{style:{background:C.grove,color:"#fff",border:"none",borderRadius:10,padding:"0 14px",fontSize:12,cursor:"pointer",fontWeight:600,flexShrink:0}});
+      payBtn.textContent="✓ Paid";
+      payBtn.addEventListener("click",()=>{
+        const v=Number(state.loanPayInputs&&state.loanPayInputs[loan.id]||0);
+        if(v<=0)return;
+        state.loans=state.loans.map(l=>l.id===loan.id?{...l,paid:Math.min(l.paid+v,l.total)}:l);
+        if(!state.loanPayInputs)state.loanPayInputs={};
+        state.loanPayInputs[loan.id]="";
+        render();
+      });
+      payRow.appendChild(payBtn);
+      card.appendChild(payRow);
+    }
+
+    // Edit panel
+    if(isEditing){
+      const panel=h("div",{style:{background:C.gray4,borderRadius:12,padding:14,border:"1px solid "+C.grove+"22",marginTop:10}});
+      const fr=h("div",{className:"form-row"});
+      if(!state.editLoan)state.editLoan={...loan,total:String(loan.total),paid:String(loan.paid),monthly:String(loan.monthly),payDay:String(loan.payDay)};
+      [["name","Loan name","text","form-full"],["total","Total amount (BD)","number",""],["paid","Paid so far (BD)","number",""],["monthly","Monthly (BD)","number",""],["payDay","Payment day","number",""]].forEach(([key,ph,type,cls])=>{
+        const inp=h("input",{className:"inp "+cls,placeholder:ph,type:type,step:"0.001",value:state.editLoan[key]||""});
+        inp.addEventListener("input",e=>state.editLoan[key]=e.target.value);
+        fr.appendChild(inp);
+      });
+      const de2=h("div",{className:"form-full"});
+      de2.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:4}},"End date"));
+      const dei2=h("input",{className:"inp",type:"date",value:state.editLoan.endDate||""});
+      dei2.addEventListener("change",e=>state.editLoan.endDate=e.target.value);
+      de2.appendChild(dei2);fr.appendChild(de2);
+      panel.appendChild(fr);
+      const btns=h("div",{style:{display:"flex",gap:8}});
+      btns.appendChild(h("button",{className:"btn-primary",style:{marginTop:0,flex:1},onClick:()=>{
+        state.loans=state.loans.map(l=>l.id===loan.id?{...l,...state.editLoan,total:Number(state.editLoan.total)||0,paid:Number(state.editLoan.paid)||0,monthly:Number(state.editLoan.monthly)||0,payDay:Number(state.editLoan.payDay)||1}:l);
+        state.editingLoanId=null;render();
+      }},"✓ Save"));
+      btns.appendChild(h("button",{className:"btn-coral",onClick:()=>{if(confirm("Delete "+loan.name+"?")){state.loans=state.loans.filter(l=>l.id!==loan.id);state.editingLoanId=null;render();}}},"🗑 Delete"));
+      panel.appendChild(btns);card.appendChild(panel);
+    }
+
     el.appendChild(card);
   });
 }
@@ -1283,7 +1562,7 @@ Rules:
 }
 
 function quickLog(s){
-  state.txs.push({id:Date.now(),date:tod(),desc:s.label,amount:s.amount,category:s.category});
+  state.txs.push({id:Date.now(),date:tod(),ts:new Date().toISOString(),desc:s.label,amount:s.amount,category:s.category});
   render();
 }
 
