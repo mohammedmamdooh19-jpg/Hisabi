@@ -7,9 +7,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Hisabi"/>
 <title>Hisabi · حسابي</title>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Scheherazade+New:wght@400;600;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1631,9 +1631,10 @@ function signOut(){
 
 // Main render router
 function renderRoot(){
-  saveState();
-  saveToCloud();
+  try{saveState();}catch(e){}
+  try{saveToCloud();}catch(e){}
   const root=document.getElementById("root");
+  if(!root)return;
   root.innerHTML="";
   if(!currentUser){renderSignIn(root);return;}
   if(!isSetup()){renderLanding(root);return;}
@@ -1730,19 +1731,26 @@ function renderSignIn(root){
 }
 
 // Auth state listener — handles both popup and redirect results
-auth.getRedirectResult().then(result=>{
-  // redirect result handled automatically by onAuthStateChanged
-}).catch(e=>console.log("Redirect result error",e));
+try{
+  auth.getRedirectResult().then(result=>{
+    // handled by onAuthStateChanged
+  }).catch(e=>console.log("Redirect result:",e));
 
-auth.onAuthStateChanged(async user=>{
-  if(user){
-    currentUser=user;
-    await loadUserData(user.uid);
-  } else {
-    currentUser=null;
-  }
+  auth.onAuthStateChanged(async user=>{
+    if(user){
+      currentUser=user;
+      try{await loadUserData(user.uid);}catch(e){console.log("Load error",e);}
+    } else {
+      currentUser=null;
+    }
+    renderRoot();
+  });
+}catch(e){
+  // Firebase failed to load — show app without auth
+  console.log("Firebase error:",e);
+  currentUser=null;
   renderRoot();
-});
+}
 
 </script>
 </body>
