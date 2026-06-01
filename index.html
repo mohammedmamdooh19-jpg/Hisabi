@@ -222,7 +222,7 @@ function h(tag,attrs,children){
 
 // ── State ──────────────────────────────────────────────────────────────────
 const defaultState={
-  tab:"dashboard", moneyTab:"transactions", planTab:"budget", dashView:"monthly",
+  tab:"dashboard", moneyTab:"transactions", planTab:"budget", dashView:"monthly", catView:"list",
   loans:[],
   showLoanForm:false, newLoan:{name:"",purpose:"💡 Other",total:"",paid:"",monthly:"",payDay:"",endDate:"",color:""},
   editingLoanId:null, editLoan:null, loanPayInputs:{},
@@ -612,31 +612,148 @@ function renderDashboard(el,d){
   const overBudgetView=CATS.filter(c=>(dispByCat[c]||0)>dispLimits[c]);
   if(overBudgetView.length>0) el.appendChild(h("div",{className:"alert alert-warn"},[h("div",{style:{color:"#8a5a00",fontWeight:600,marginBottom:4,fontSize:13}},"⚠ Over "+(isWeekly?"Weekly":"Monthly")+" Budget"),h("div",{style:{fontSize:12,color:"#8a5a00"}},overBudgetView.join(", "))]));
 
-  // ── Spending by Category ──
+
+  // ── Spending by Category — Chart / List toggle ──
   const spCard=h("div",{className:"card"});
-  const spHdr=h("div",{className:"sec-hdr"});
+  const spHdr=h("div",{className:"sec-hdr",style:{marginBottom:10}});
   spHdr.appendChild(h("div",{className:"card-title",style:{margin:0}},"Spending by Category"));
-  if(isWeekly) spHdr.appendChild(h("div",{style:{fontSize:10,color:C.teal,background:C.tealLight,padding:"3px 8px",borderRadius:99,fontWeight:600}},"Weekly limits"));
-  spCard.appendChild(spHdr);
-  const catGrid=h("div",{className:"cat-grid"});
-  CATS.filter(c=>(dispByCat[c]||0)>0||(dispLimits[c]||0)>0).forEach(cat=>{
-    const spent=dispByCat[cat]||0;
-    const limit=dispLimits[cat]||0;
-    const pct=limit>0?Math.min((spent/limit)*100,100):0;
-    const over=spent>limit&&limit>0;
-    const col=over?C.coral:CAT_COLORS[cat];
-    const card=h("div",{className:"cat-card"});
-    card.appendChild(h("div",{className:"cat-icon-circle",style:{background:col+"20"}},(CAT_ICONS[cat]||"📦")));
-    card.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:3,fontWeight:500}},cat));
-    card.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:12,fontWeight:700,color:over?C.coral:C.gray1,marginBottom:2}},"BD "+Number(spent).toFixed(3)));
-    card.appendChild(h("div",{style:{fontSize:9,color:C.gray2,marginBottom:8}},"of BD "+Number(limit).toFixed(3)));
-    const track=h("div",{style:{width:"100%",background:C.bg,borderRadius:99,height:4,overflow:"hidden"}});
-    track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:col,borderRadius:99}}));
-    card.appendChild(track);
-    catGrid.appendChild(card);
+
+  // Toggle pill: List | Chart
+  const viewPill=h("div",{style:{display:"flex",background:C.gray4,borderRadius:99,padding:3,border:"1px solid "+C.border}});
+  ["list","chart"].forEach(v=>{
+    const btn=document.createElement("button");
+    btn.style.cssText="padding:4px 12px;border-radius:99px;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;background:"+(state.catView===v?C.grove:"transparent")+";color:"+(state.catView===v?"#fff":C.gray2)+";transition:all 0.15s;";
+    btn.textContent=v==="list"?"≡ List":"◕ Chart";
+    btn.addEventListener("click",()=>{state.catView=v;render();});
+    viewPill.appendChild(btn);
   });
-  spCard.appendChild(catGrid);
+  spHdr.appendChild(viewPill);
+  spCard.appendChild(spHdr);
+
+  if(isWeekly) spCard.appendChild(h("div",{style:{fontSize:10,color:C.teal,background:C.tealLight,padding:"4px 10px",borderRadius:99,fontWeight:600,display:"inline-block",marginBottom:10}},"Weekly view"));
+
+  const activeCats=CATS.filter(c=>(dispByCat[c]||0)>0);
+  const totalDisp=activeCats.reduce((s,c)=>s+(dispByCat[c]||0),0);
+
+  if(activeCats.length===0){
+    const empty=h("div",{style:{textAlign:"center",padding:"28px 0",color:C.gray2}});
+    empty.appendChild(h("div",{style:{fontSize:36,marginBottom:8}},"📊"));
+    empty.appendChild(h("div",{style:{fontSize:13,fontWeight:500,color:C.gray2,marginBottom:4}},"No spending yet"));
+    empty.appendChild(h("div",{style:{fontSize:11,color:C.gray3}},"Add transactions to see your breakdown"));
+    spCard.appendChild(empty);
+
+  } else if(state.catView==="chart"){
+    // ── CHART VIEW ──
+    const chartWrap=h("div",{style:{display:"flex",alignItems:"center",gap:16,marginBottom:14}});
+
+    // SVG Donut
+    const cx=75,cy=75,R=58,r=34;
+    const svgNS="http://www.w3.org/2000/svg";
+    const svg=document.createElementNS(svgNS,"svg");
+    svg.setAttribute("width","150");svg.setAttribute("height","150");
+    svg.setAttribute("viewBox","0 0 150 150");svg.style.flexShrink="0";
+
+    let startAngle=-90;
+    activeCats.forEach(cat=>{
+      const val=dispByCat[cat]||0;
+      const over=(val>(dispLimits[cat]||0))&&(dispLimits[cat]||0)>0;
+      const col=over?C.coral:CAT_COLORS[cat]||C.gray3;
+      const pct=totalDisp>0?val/totalDisp:0;
+      const angle=pct*360;
+      const endAngle=startAngle+angle;
+      if(pct>=0.999){
+        const circ=document.createElementNS(svgNS,"circle");
+        circ.setAttribute("cx",cx);circ.setAttribute("cy",cy);circ.setAttribute("r",(R+r)/2);
+        circ.setAttribute("fill","none");circ.setAttribute("stroke",col);circ.setAttribute("stroke-width",R-r);
+        svg.appendChild(circ);
+      } else {
+        const s=startAngle*Math.PI/180,e=endAngle*Math.PI/180;
+        const large=angle>180?1:0;
+        const path=document.createElementNS(svgNS,"path");
+        path.setAttribute("d",`M${cx+R*Math.cos(s)},${cy+R*Math.sin(s)} A${R},${R} 0 ${large},1 ${cx+R*Math.cos(e)},${cy+R*Math.sin(e)} L${cx+r*Math.cos(e)},${cy+r*Math.sin(e)} A${r},${r} 0 ${large},0 ${cx+r*Math.cos(s)},${cy+r*Math.sin(s)} Z`);
+        path.setAttribute("fill",col);path.setAttribute("stroke","#fff");path.setAttribute("stroke-width","2");
+        svg.appendChild(path);
+      }
+      startAngle=endAngle;
+    });
+
+    // Center label
+    const ct=document.createElementNS(svgNS,"text");
+    ct.setAttribute("x",cx);ct.setAttribute("y",cy-5);ct.setAttribute("text-anchor","middle");
+    ct.setAttribute("font-size","9");ct.setAttribute("fill",C.gray2);ct.setAttribute("font-family","'Plus Jakarta Sans',sans-serif");
+    ct.textContent=isWeekly?"This week":"This month";svg.appendChild(ct);
+    const ca=document.createElementNS(svgNS,"text");
+    ca.setAttribute("x",cx);ca.setAttribute("y",cy+11);ca.setAttribute("text-anchor","middle");
+    ca.setAttribute("font-size","12");ca.setAttribute("font-weight","700");ca.setAttribute("fill",C.gray1);
+    ca.setAttribute("font-family","'Lora',Georgia,serif");
+    ca.textContent="BD "+Number(totalDisp).toFixed(3);svg.appendChild(ca);
+    chartWrap.appendChild(svg);
+
+    // Legend
+    const legend=h("div",{style:{flex:1,display:"flex",flexDirection:"column",gap:8,minWidth:0}});
+    activeCats.forEach(cat=>{
+      const val=dispByCat[cat]||0;
+      const pct=totalDisp>0?Math.round((val/totalDisp)*100):0;
+      const over=(val>(dispLimits[cat]||0))&&(dispLimits[cat]||0)>0;
+      const col=over?C.coral:CAT_COLORS[cat]||C.gray3;
+      const row=h("div",{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}});
+      row.appendChild(h("div",{style:{width:10,height:10,borderRadius:3,background:col,flexShrink:0}}));
+      row.appendChild(h("div",{style:{fontSize:14,flexShrink:0}},(CAT_ICONS[cat]||"📦")));
+      row.appendChild(h("div",{style:{fontSize:11,color:C.gray1,flex:1,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}},cat));
+      row.appendChild(h("div",{style:{fontSize:11,color:col,fontWeight:600,flexShrink:0}},pct+"%"));
+      legend.appendChild(row);
+    });
+    chartWrap.appendChild(legend);
+    spCard.appendChild(chartWrap);
+
+    // Breakdown bar below
+    const breakdown=h("div",{style:{borderTop:"1px solid "+C.border,paddingTop:12}});
+    activeCats.forEach(cat=>{
+      const val=dispByCat[cat]||0;
+      const limit=dispLimits[cat]||0;
+      const over=val>limit&&limit>0;
+      const col=over?C.coral:CAT_COLORS[cat]||C.gray3;
+      const pctBar=limit>0?Math.min((val/limit)*100,100):100;
+      const row=h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:10}});
+      row.appendChild(h("div",{style:{fontSize:15,flexShrink:0}},(CAT_ICONS[cat]||"📦")));
+      const mid=h("div",{style:{flex:1,minWidth:0}});
+      mid.appendChild(h("div",{style:{fontSize:11,color:C.gray1,marginBottom:3}},cat));
+      const track=h("div",{style:{background:C.bg,borderRadius:99,height:4,overflow:"hidden"}});
+      track.appendChild(h("div",{style:{width:pctBar+"%",height:"100%",background:col,borderRadius:99}}));
+      mid.appendChild(track);
+      row.appendChild(mid);
+      const right=h("div",{style:{textAlign:"right",flexShrink:0}});
+      right.appendChild(h("div",{style:{fontSize:11,fontFamily:"'Lora',serif",fontWeight:700,color:col}},"BD "+Number(val).toFixed(3)));
+      if(limit>0) right.appendChild(h("div",{style:{fontSize:9,color:C.gray3}},"/ "+Number(limit).toFixed(3)));
+      row.appendChild(right);
+      breakdown.appendChild(row);
+    });
+    spCard.appendChild(breakdown);
+
+  } else {
+    // ── LIST VIEW (original icon cards) ──
+    const catGrid=h("div",{className:"cat-grid"});
+    CATS.filter(c=>(dispByCat[c]||0)>0||(dispLimits[c]||0)>0).forEach(cat=>{
+      const spent=dispByCat[cat]||0;
+      const limit=dispLimits[cat]||0;
+      const pct=limit>0?Math.min((spent/limit)*100,100):0;
+      const over=spent>limit&&limit>0;
+      const col=over?C.coral:CAT_COLORS[cat];
+      const card=h("div",{className:"cat-card"});
+      card.appendChild(h("div",{className:"cat-icon-circle",style:{background:col+"20"}},(CAT_ICONS[cat]||"📦")));
+      card.appendChild(h("div",{style:{fontSize:10,color:C.gray2,marginBottom:3,fontWeight:500}},cat));
+      card.appendChild(h("div",{style:{fontFamily:"'Lora',serif",fontSize:12,fontWeight:700,color:over?C.coral:C.gray1,marginBottom:2}},"BD "+Number(spent).toFixed(3)));
+      card.appendChild(h("div",{style:{fontSize:9,color:C.gray2,marginBottom:8}},"of BD "+Number(limit).toFixed(3)));
+      const track=h("div",{style:{width:"100%",background:C.bg,borderRadius:99,height:4,overflow:"hidden"}});
+      track.appendChild(h("div",{style:{width:pct+"%",height:"100%",background:col,borderRadius:99}}));
+      card.appendChild(track);
+      catGrid.appendChild(card);
+    });
+    spCard.appendChild(catGrid);
+  }
   el.appendChild(spCard);
+
+
 
   // ── Goals (monthly only) ──
   if(!isWeekly&&state.goals.length>0){
